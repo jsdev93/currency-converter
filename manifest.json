@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Live Currency Converter (JPY to USD)",
+  "version": "1.0.0",
+  "description": "Real-time currency conversion from Japanese Yen to US Dollar as you type",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "background"
+  ],
+  
+  "host_permissions": [
+    "https://api.exchangerate-api.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Live Currency Converter",
+    "default_icon": {
+      "16": "icons/icon16.svg",
+      "32": "icons/icon32.svg",
+      "48": "icons/icon48.svg",
+      "128": "icons/icon128.svg"
+    }
+  },
+  
+  "icons": {
+    "16": "icons/icon16.svg",
+    "32": "icons/icon32.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  }
+}
