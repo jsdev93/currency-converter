@@ -3,6 +3,7 @@ class CurrencyConverter {
   constructor() {
     this.tooltip = null;
     this.isEnabled = true;
+    this.processingFee = false;
     this.currentRate = null;
     this.debounceTimer = null;
     this.fromCurrency = "JPY";
@@ -14,15 +15,18 @@ class CurrencyConverter {
     // Get extension state from storage
     const {
       enabled = true,
+      processingFee = false,
       fromCurrency = "JPY",
       toCurrency = "USD",
     } = await chrome.storage.local.get([
       "enabled",
+      "processingFee",
       "fromCurrency",
       "toCurrency",
     ]);
 
     this.isEnabled = enabled;
+    this.processingFee = processingFee;
     this.fromCurrency = fromCurrency;
     this.toCurrency = toCurrency;
 
@@ -207,16 +211,37 @@ class CurrencyConverter {
 
     const rect = element.getBoundingClientRect();
     const formattedFrom = this.formatCurrency(fromAmount, this.fromCurrency);
-    const formattedTo = this.formatCurrency(toAmount, this.toCurrency);
 
-    this.tooltip.innerHTML = `
+    // Apply 5% processing fee if enabled
+    let finalToAmount = toAmount;
+    if (this.processingFee) {
+      finalToAmount = toAmount * 1.05; // Add 5% fee
+    }
+
+    const formattedTo = this.formatCurrency(finalToAmount, this.toCurrency);
+
+    let tooltipContent = `
       <div style="font-weight: 600; margin-bottom: 2px;">
         ${formattedFrom} → ${formattedTo}
       </div>
       <div style="font-size: 12px; opacity: 0.8;">
         Rate: 1 ${this.fromCurrency} = ${rate.toFixed(6)} ${this.toCurrency}
-      </div>
-    `;
+      </div>`;
+
+    // Show fee breakdown if processing fee is enabled
+    if (this.processingFee) {
+      const formattedBase = this.formatCurrency(toAmount, this.toCurrency);
+      const formattedFee = this.formatCurrency(
+        toAmount * 0.05,
+        this.toCurrency
+      );
+      tooltipContent += `
+      <div style="font-size: 11px; opacity: 0.7; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 4px;">
+        Base: ${formattedBase} + Fee: ${formattedFee} (5%)
+      </div>`;
+    }
+
+    this.tooltip.innerHTML = tooltipContent;
 
     // Position tooltip
     const tooltipRect = this.tooltip.getBoundingClientRect();
@@ -286,17 +311,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     sendResponse({ success: true });
   }
+
+  if (request.action === "processingFeeChanged") {
+    if (currencyConverter) {
+      currencyConverter.processingFee = request.processingFee;
+      console.log("Processing fee changed to:", request.processingFee);
+      // Hide current tooltip to refresh with new fee calculation
+      currencyConverter.hideTooltip();
+    }
+    sendResponse({ success: true });
+  }
 });
 
 // Listen for storage changes as backup
 chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === "local" && changes.enabled && currencyConverter) {
-    currencyConverter.isEnabled = changes.enabled.newValue;
-    console.log(
-      "Storage change - Extension enabled:",
-      changes.enabled.newValue
-    );
-    if (!changes.enabled.newValue) {
+  if (namespace === "local" && currencyConverter) {
+    if (changes.enabled) {
+      currencyConverter.isEnabled = changes.enabled.newValue;
+      console.log(
+        "Storage change - Extension enabled:",
+        changes.enabled.newValue
+      );
+      if (!changes.enabled.newValue) {
+        currencyConverter.hideTooltip();
+      }
+    }
+
+    if (changes.processingFee) {
+      currencyConverter.processingFee = changes.processingFee.newValue;
+      console.log(
+        "Storage change - Processing fee:",
+        changes.processingFee.newValue
+      );
+      // Refresh tooltip to show updated fee
       currencyConverter.hideTooltip();
     }
   }

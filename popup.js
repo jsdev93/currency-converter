@@ -3,6 +3,7 @@
 class PopupController {
   constructor() {
     this.enableToggle = document.getElementById("enableToggle");
+    this.processingFeeToggle = document.getElementById("processingFeeToggle");
     this.rateValue = document.getElementById("rateValue");
     this.rateDescription = document.getElementById("rateDescription");
     this.lastUpdated = document.getElementById("lastUpdated");
@@ -23,15 +24,18 @@ class PopupController {
     try {
       const {
         enabled = true,
+        processingFee = false,
         fromCurrency = "JPY",
         toCurrency = "USD",
       } = await chrome.storage.local.get([
         "enabled",
+        "processingFee",
         "fromCurrency",
         "toCurrency",
       ]);
 
       this.updateToggle(enabled);
+      this.updateProcessingFeeToggle(processingFee);
       this.fromCurrency.value = fromCurrency;
       this.toCurrency.value = toCurrency;
       this.updateRateDescription();
@@ -72,6 +76,10 @@ class PopupController {
 
   setupEventListeners() {
     this.enableToggle.addEventListener("click", this.handleToggle.bind(this));
+    this.processingFeeToggle.addEventListener(
+      "click",
+      this.handleProcessingFeeToggle.bind(this)
+    );
     this.fromCurrency.addEventListener(
       "change",
       this.handleCurrencyChange.bind(this)
@@ -127,6 +135,46 @@ class PopupController {
       this.enableToggle.classList.add("active");
     } else {
       this.enableToggle.classList.remove("active");
+    }
+  }
+
+  async handleProcessingFeeToggle() {
+    const isCurrentlyEnabled =
+      this.processingFeeToggle.classList.contains("active");
+    const newState = !isCurrentlyEnabled;
+
+    try {
+      // Save to storage
+      await chrome.storage.local.set({ processingFee: newState });
+
+      // Update UI
+      this.updateProcessingFeeToggle(newState);
+
+      // Notify content scripts
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tabs[0]) {
+        chrome.tabs
+          .sendMessage(tabs[0].id, {
+            action: "processingFeeChanged",
+            processingFee: newState,
+          })
+          .catch((error) => {
+            console.log("Could not notify content script:", error.message);
+          });
+      }
+    } catch (error) {
+      console.error("Failed to toggle processing fee:", error);
+    }
+  }
+
+  updateProcessingFeeToggle(enabled) {
+    if (enabled) {
+      this.processingFeeToggle.classList.add("active");
+    } else {
+      this.processingFeeToggle.classList.remove("active");
     }
   }
 
