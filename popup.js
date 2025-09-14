@@ -15,6 +15,14 @@ const CONFIG = {
     urlFilterMode: "disabled", // "disabled", "allowlist", "blocklist"
     allowlistUrls: ["ebay.com", "amazon.com", "aliexpress.com"],
     blocklistUrls: ["chrome://", "chrome-extension://"],
+    selectorFilterMode: "disabled", // "disabled", "allowlist", "blocklist"
+    allowedSelectors: [
+      ".price",
+      "#price-input",
+      "[data-price]",
+      ".currency-input",
+    ],
+    blockedSelectors: [".advertisement", ".ad", "#popup", ".modal"],
   },
   STORAGE_KEYS: [
     "enabled",
@@ -26,6 +34,9 @@ const CONFIG = {
     "urlFilterMode",
     "allowlistUrls",
     "blocklistUrls",
+    "selectorFilterMode",
+    "allowedSelectors",
+    "blockedSelectors",
   ],
   MESSAGES: {
     PING: "ping",
@@ -35,6 +46,7 @@ const CONFIG = {
     TARIFF_CHANGED: "tariffChanged",
     TARIFF_PERCENTAGE_CHANGED: "tariffPercentageChanged",
     URL_FILTER_CHANGED: "urlFilterChanged",
+    SELECTOR_FILTER_CHANGED: "selectorFilterChanged",
   },
 };
 
@@ -126,6 +138,15 @@ class PopupController {
       "blocklistUrls",
       "allowlistContainer",
       "blocklistContainer",
+      "advancedToggle",
+      "advancedContent",
+      "selectorModeDisabled",
+      "selectorModeAllowlist",
+      "selectorModeBlocklist",
+      "allowedSelectors",
+      "blockedSelectors",
+      "allowedSelectorsContainer",
+      "blockedSelectorsContainer",
     ];
 
     const elements = {};
@@ -184,6 +205,9 @@ class PopupController {
       urlFilterMode,
       allowlistUrls,
       blocklistUrls,
+      selectorFilterMode,
+      allowedSelectors,
+      blockedSelectors,
     } = settings;
 
     this.updateToggle(enabled);
@@ -203,6 +227,10 @@ class PopupController {
     // Apply URL management settings
     this.updateUrlFilterMode(urlFilterMode);
     this.updateUrlLists(allowlistUrls, blocklistUrls);
+
+    // Apply selector management settings
+    this.updateSelectorFilterMode(selectorFilterMode);
+    this.updateSelectorLists(allowedSelectors, blockedSelectors);
   }
 
   async loadExchangeRate() {
@@ -293,6 +321,36 @@ class PopupController {
         element: "blocklistUrls",
         event: "input",
         handler: "handleBlocklistChange",
+      },
+      {
+        element: "advancedToggle",
+        event: "click",
+        handler: "handleAdvancedToggle",
+      },
+      {
+        element: "selectorModeDisabled",
+        event: "change",
+        handler: "handleSelectorModeChange",
+      },
+      {
+        element: "selectorModeAllowlist",
+        event: "change",
+        handler: "handleSelectorModeChange",
+      },
+      {
+        element: "selectorModeBlocklist",
+        event: "change",
+        handler: "handleSelectorModeChange",
+      },
+      {
+        element: "allowedSelectors",
+        event: "input",
+        handler: "handleAllowedSelectorsChange",
+      },
+      {
+        element: "blockedSelectors",
+        event: "input",
+        handler: "handleBlockedSelectorsChange",
       },
     ];
 
@@ -710,6 +768,164 @@ class PopupController {
       urlFilterMode: settings.urlFilterMode,
       allowlistUrls: settings.allowlistUrls,
       blocklistUrls: settings.blocklistUrls,
+    });
+  }
+
+  /**
+   * Handle advanced settings toggle
+   */
+  handleAdvancedToggle() {
+    if (!this.elements.advancedToggle || !this.elements.advancedContent) return;
+
+    const isExpanded = this.elements.advancedContent.style.display !== "none";
+
+    if (isExpanded) {
+      this.elements.advancedContent.style.display = "none";
+      this.elements.advancedToggle.classList.remove("expanded");
+    } else {
+      this.elements.advancedContent.style.display = "block";
+      this.elements.advancedToggle.classList.add("expanded");
+    }
+  }
+
+  /**
+   * Update selector filter mode UI and visibility
+   * @param {string} mode - Filter mode: 'disabled', 'allowlist', 'blocklist'
+   */
+  updateSelectorFilterMode(mode) {
+    // Update radio buttons
+    if (this.elements.selectorModeDisabled) {
+      this.elements.selectorModeDisabled.checked = mode === "disabled";
+    }
+    if (this.elements.selectorModeAllowlist) {
+      this.elements.selectorModeAllowlist.checked = mode === "allowlist";
+    }
+    if (this.elements.selectorModeBlocklist) {
+      this.elements.selectorModeBlocklist.checked = mode === "blocklist";
+    }
+
+    // Show/hide appropriate containers
+    if (this.elements.allowedSelectorsContainer) {
+      this.elements.allowedSelectorsContainer.style.display =
+        mode === "allowlist" ? "block" : "none";
+    }
+    if (this.elements.blockedSelectorsContainer) {
+      this.elements.blockedSelectorsContainer.style.display =
+        mode === "blocklist" ? "block" : "none";
+    }
+  }
+
+  /**
+   * Update selector lists in textareas
+   * @param {Array} allowedSelectors - Array of allowed CSS selectors
+   * @param {Array} blockedSelectors - Array of blocked CSS selectors
+   */
+  updateSelectorLists(allowedSelectors, blockedSelectors) {
+    if (this.elements.allowedSelectors && Array.isArray(allowedSelectors)) {
+      this.elements.allowedSelectors.value = allowedSelectors.join("\n");
+    }
+    if (this.elements.blockedSelectors && Array.isArray(blockedSelectors)) {
+      this.elements.blockedSelectors.value = blockedSelectors.join("\n");
+    }
+  }
+
+  /**
+   * Handle selector filter mode change
+   */
+  async handleSelectorModeChange(event) {
+    const mode = event.target.value;
+
+    try {
+      // Save to storage
+      await chrome.storage.local.set({ selectorFilterMode: mode });
+
+      // Update UI
+      this.updateSelectorFilterMode(mode);
+
+      // Notify content scripts
+      await this.notifySelectorFilterChange();
+    } catch (error) {
+      console.error("Failed to update selector filter mode:", error);
+    }
+  }
+
+  /**
+   * Handle allowed selectors change
+   */
+  async handleAllowedSelectorsChange() {
+    if (!this.elements.allowedSelectors) return;
+
+    const selectorText = this.elements.allowedSelectors.value;
+    const selectors = this.parseSelectorList(selectorText);
+
+    try {
+      await chrome.storage.local.set({ allowedSelectors: selectors });
+      await this.notifySelectorFilterChange();
+    } catch (error) {
+      console.error("Failed to update allowed selectors:", error);
+    }
+  }
+
+  /**
+   * Handle blocked selectors change
+   */
+  async handleBlockedSelectorsChange() {
+    if (!this.elements.blockedSelectors) return;
+
+    const selectorText = this.elements.blockedSelectors.value;
+    const selectors = this.parseSelectorList(selectorText);
+
+    try {
+      await chrome.storage.local.set({ blockedSelectors: selectors });
+      await this.notifySelectorFilterChange();
+    } catch (error) {
+      console.error("Failed to update blocked selectors:", error);
+    }
+  }
+
+  /**
+   * Parse selector list from textarea input
+   * @param {string} selectorText - Raw text input from textarea
+   * @returns {Array} Cleaned array of CSS selectors
+   */
+  parseSelectorList(selectorText) {
+    return selectorText
+      .split("\n")
+      .map((selector) => selector.trim())
+      .filter((selector) => selector.length > 0)
+      .filter((selector) => this.isValidCSSSelector(selector));
+  }
+
+  /**
+   * Validate CSS selector syntax
+   * @param {string} selector - CSS selector to validate
+   * @returns {boolean} Whether selector is valid
+   */
+  isValidCSSSelector(selector) {
+    try {
+      document.querySelector(selector);
+      return true;
+    } catch (error) {
+      console.warn("Invalid CSS selector:", selector);
+      return false;
+    }
+  }
+
+  /**
+   * Notify content script of selector filter changes
+   */
+  async notifySelectorFilterChange() {
+    const settings = await chrome.storage.local.get([
+      "selectorFilterMode",
+      "allowedSelectors",
+      "blockedSelectors",
+    ]);
+
+    await PopupUtils.sendMessageToActiveTab({
+      action: CONFIG.MESSAGES.SELECTOR_FILTER_CHANGED,
+      selectorFilterMode: settings.selectorFilterMode,
+      allowedSelectors: settings.allowedSelectors,
+      blockedSelectors: settings.blockedSelectors,
     });
   }
 }

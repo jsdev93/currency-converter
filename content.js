@@ -16,13 +16,14 @@ class CurrencyConverter {
     this.allowlistUrls = [];
     this.blocklistUrls = [];
     this.isUrlAllowed = true; // Default to allowed
+    this.selectorFilterMode = "disabled";
+    this.allowedSelectors = [];
+    this.blockedSelectors = [];
     this.init();
   }
 
   async init() {
     console.log("🔄 Currency Converter: Initializing...");
-
-    // Get extension state from storage
     const {
       enabled = true,
       processingFee = false,
@@ -33,6 +34,9 @@ class CurrencyConverter {
       urlFilterMode = "disabled",
       allowlistUrls = [],
       blocklistUrls = [],
+      selectorFilterMode = "disabled",
+      allowedSelectors = [],
+      blockedSelectors = [],
     } = await chrome.storage.local.get([
       "enabled",
       "processingFee",
@@ -43,6 +47,9 @@ class CurrencyConverter {
       "urlFilterMode",
       "allowlistUrls",
       "blocklistUrls",
+      "selectorFilterMode",
+      "allowedSelectors",
+      "blockedSelectors",
     ]);
 
     this.isEnabled = enabled;
@@ -54,6 +61,9 @@ class CurrencyConverter {
     this.urlFilterMode = urlFilterMode;
     this.allowlistUrls = allowlistUrls;
     this.blocklistUrls = blocklistUrls;
+    this.selectorFilterMode = selectorFilterMode;
+    this.allowedSelectors = allowedSelectors;
+    this.blockedSelectors = blockedSelectors;
 
     // Check if current URL is allowed
     this.isUrlAllowed = this.checkUrlAllowed(window.location.href);
@@ -68,6 +78,9 @@ class CurrencyConverter {
       site: window.location.hostname,
       urlFilterMode: this.urlFilterMode,
       urlAllowed: this.isUrlAllowed,
+      selectorFilterMode: this.selectorFilterMode,
+      allowedSelectors: this.allowedSelectors,
+      blockedSelectors: this.blockedSelectors,
     });
 
     if (this.isEnabled) {
@@ -187,16 +200,29 @@ class CurrencyConverter {
   }
 
   handleInput(event) {
+    console.log("🎯 Input event triggered:", {
+      enabled: this.isEnabled,
+      urlAllowed: this.isUrlAllowed,
+      tagName: event.target.tagName,
+      className: event.target.className,
+      id: event.target.id,
+      selectorMode: this.selectorFilterMode,
+      allowedSelectors: this.allowedSelectors,
+    });
+
     // Check if extension is enabled and URL is allowed
     if (!this.isEnabled || !this.isUrlAllowed) {
+      console.log("❌ Extension disabled or URL not allowed");
       return;
     }
 
-    // Only log if we're actually processing a valid input element
+    // Only process valid input elements
     if (this.isInputElement(event.target)) {
       console.log("🔍 Processing input on", window.location.hostname);
+      this.handleTextChange(event.target);
+    } else {
+      console.log("❌ Element failed isInputElement check");
     }
-    this.handleTextChange(event.target);
   }
 
   handleFocus(event) {
@@ -247,6 +273,16 @@ class CurrencyConverter {
       return;
     }
 
+    // IMPORTANT: Check if this element should be processed based on our filters
+    if (!this.isInputElement(element)) {
+      console.log("🚫 Element rejected by filters in handleTextChange:", {
+        tagName: element.tagName,
+        className: element.className,
+        id: element.id,
+      });
+      return;
+    }
+
     clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.processText(element);
@@ -256,6 +292,67 @@ class CurrencyConverter {
   isInputElement(element) {
     if (!element || !element.tagName) return false;
 
+    // If selector filtering is enabled with specific selectors, ONLY use selector matching
+    if (
+      this.selectorFilterMode === "allowlist" &&
+      this.allowedSelectors.length > 0
+    ) {
+      const result = this.allowedSelectors.some((selector) =>
+        this.elementMatchesSelector(element, selector)
+      );
+
+      // Debug: Log when element is being checked
+      if (result) {
+        console.log("✅ Element ALLOWED:", {
+          tagName: element.tagName,
+          className: element.className,
+          id: element.id,
+          matchedSelectors: this.allowedSelectors.filter((selector) =>
+            this.elementMatchesSelector(element, selector)
+          ),
+        });
+      } else {
+        console.log("❌ Element REJECTED:", {
+          tagName: element.tagName,
+          className: element.className,
+          id: element.id,
+          allowedSelectors: this.allowedSelectors,
+        });
+      }
+
+      return result;
+    }
+
+    if (
+      this.selectorFilterMode === "blocklist" &&
+      this.blockedSelectors.length > 0
+    ) {
+      // For blocklist mode with selectors, still need basic input check first
+      let isBasicInput = this.isBasicInputElement(element);
+      if (!isBasicInput) return false;
+
+      // Then check if it's NOT in the blocked selectors
+      return !this.blockedSelectors.some((selector) =>
+        this.elementMatchesSelector(element, selector)
+      );
+    }
+
+    // Default behavior: basic input detection + optional selector filtering
+    let isInput = this.isBasicInputElement(element);
+    if (!isInput) {
+      return false;
+    }
+
+    // Apply selector filtering if enabled (for disabled mode or empty selector lists)
+    return this.checkElementAgainstSelectors(element);
+  }
+
+  /**
+   * Check if element is a basic input element (original logic)
+   * @param {Element} element - Element to check
+   * @returns {boolean} Whether element is a basic input
+   */
+  isBasicInputElement(element) {
     // Standard input elements
     if (element.tagName === "INPUT" || element.tagName === "TEXTAREA") {
       return true;
@@ -644,6 +741,71 @@ class CurrencyConverter {
       this.hideTooltip();
     }
   }
+
+  /**
+   * Check element against selector filters
+   * @param {Element} element - Element to check
+   * @returns {boolean} Whether element should be processed
+   */
+  checkElementAgainstSelectors(element) {
+    if (this.selectorFilterMode === "disabled") {
+      return true;
+    }
+
+    if (this.selectorFilterMode === "allowlist") {
+      // If allowlist is empty, allow all elements
+      if (!this.allowedSelectors.length) {
+        return true;
+      }
+      // Check if element matches any allowed selector
+      return this.allowedSelectors.some((selector) =>
+        this.elementMatchesSelector(element, selector)
+      );
+    }
+
+    if (this.selectorFilterMode === "blocklist") {
+      // Check if element matches any blocked selector
+      return !this.blockedSelectors.some((selector) =>
+        this.elementMatchesSelector(element, selector)
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if element matches a CSS selector
+   * @param {Element} element - Element to check
+   * @param {string} selector - CSS selector
+   * @returns {boolean} Whether element matches selector
+   */
+  elementMatchesSelector(element, selector) {
+    try {
+      return element.matches(selector);
+    } catch (error) {
+      console.warn("Invalid selector:", selector, error);
+      return false;
+    }
+  }
+
+  /**
+   * Update selector filter settings
+   * @param {Object} settings - New selector filter settings
+   */
+  updateSelectorFilter(settings) {
+    this.selectorFilterMode = settings.selectorFilterMode || "disabled";
+    this.allowedSelectors = settings.allowedSelectors || [];
+    this.blockedSelectors = settings.blockedSelectors || [];
+
+    console.log("Selector filter updated:", {
+      mode: this.selectorFilterMode,
+      allowedSelectors: this.allowedSelectors,
+      blockedSelectors: this.blockedSelectors,
+    });
+
+    // Hide tooltip since filtering may have changed
+    this.hideTooltip();
+  }
 }
 
 // Initialize the converter
@@ -751,6 +913,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       sendResponse({ success: true });
     }
+
+    if (request.action === "selectorFilterChanged") {
+      if (currencyConverter) {
+        currencyConverter.updateSelectorFilter({
+          selectorFilterMode: request.selectorFilterMode,
+          allowedSelectors: request.allowedSelectors,
+          blockedSelectors: request.blockedSelectors,
+        });
+      }
+      sendResponse({ success: true });
+    }
   } catch (error) {
     console.log("Error handling message:", error.message);
     sendResponse({ success: false, error: error.message });
@@ -821,6 +994,31 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
           newSettings.allowlistUrls || currencyConverter.allowlistUrls,
         blocklistUrls:
           newSettings.blocklistUrls || currencyConverter.blocklistUrls,
+      });
+    }
+
+    // Handle selector filter changes
+    if (
+      changes.selectorFilterMode ||
+      changes.allowedSelectors ||
+      changes.blockedSelectors
+    ) {
+      const newSettings = {};
+      if (changes.selectorFilterMode)
+        newSettings.selectorFilterMode = changes.selectorFilterMode.newValue;
+      if (changes.allowedSelectors)
+        newSettings.allowedSelectors = changes.allowedSelectors.newValue;
+      if (changes.blockedSelectors)
+        newSettings.blockedSelectors = changes.blockedSelectors.newValue;
+
+      currencyConverter.updateSelectorFilter({
+        selectorFilterMode:
+          newSettings.selectorFilterMode ||
+          currencyConverter.selectorFilterMode,
+        allowedSelectors:
+          newSettings.allowedSelectors || currencyConverter.allowedSelectors,
+        blockedSelectors:
+          newSettings.blockedSelectors || currencyConverter.blockedSelectors,
       });
     }
   }

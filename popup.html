@@ -132,6 +132,95 @@
       box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
     }
 
+    .advanced-settings-section {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      margin-bottom: 15px;
+      backdrop-filter: blur(10px);
+      overflow: hidden;
+    }
+
+    .section-header {
+      padding: 15px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+      user-select: none;
+    }
+
+    .section-header:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .collapse-icon {
+      font-size: 12px;
+      transition: transform 0.3s ease;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    .section-header.expanded .collapse-icon {
+      transform: rotate(180deg);
+    }
+
+    .advanced-content {
+      padding: 0 15px 15px 15px;
+      transition: max-height 0.3s ease, opacity 0.3s ease;
+      overflow: hidden;
+    }
+
+    .selector-mode-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .selector-input-container {
+      margin-top: 10px;
+    }
+
+    .selector-input-label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 6px;
+      opacity: 0.8;
+      font-weight: 500;
+    }
+
+    .selector-textarea {
+      width: 100%;
+      min-height: 70px;
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    .selector-textarea::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+      font-style: italic;
+    }
+
+    .selector-textarea:focus {
+      outline: none;
+      border-color: #4299e1;
+      box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
+    }
+
+    .selector-help {
+      font-size: 10px;
+      opacity: 0.6;
+      margin-top: 4px;
+      font-style: italic;
+    }
+
     .toggle-container {
       display: flex;
       justify-content: space-between;
@@ -398,6 +487,44 @@
       <div class="url-input-container" id="blocklistContainer" style="display: none;">
         <label class="url-input-label">Blocked URLs (one per line):</label>
         <textarea id="blocklistUrls" class="url-textarea" placeholder="chrome://&#10;chrome-extension://&#10;*.ads.com"></textarea>
+      </div>
+    </div>
+
+    <div class="advanced-settings-section">
+      <div class="section-header" id="advancedToggle">
+        <span class="section-title">Advanced Element Filtering</span>
+        <span class="collapse-icon">▼</span>
+      </div>
+      
+      <div class="advanced-content" id="advancedContent" style="display: none;">
+        <div class="selector-mode-container">
+          <label class="radio-container">
+            <input type="radio" name="selectorFilterMode" value="disabled" id="selectorModeDisabled" checked>
+            <span class="radio-label">All Input Elements</span>
+          </label>
+          
+          <label class="radio-container">
+            <input type="radio" name="selectorFilterMode" value="allowlist" id="selectorModeAllowlist">
+            <span class="radio-label">Specific Elements Only</span>
+          </label>
+          
+          <label class="radio-container">
+            <input type="radio" name="selectorFilterMode" value="blocklist" id="selectorModeBlocklist">
+            <span class="radio-label">Exclude Elements</span>
+          </label>
+        </div>
+        
+        <div class="selector-input-container" id="allowedSelectorsContainer" style="display: none;">
+          <label class="selector-input-label">Allowed CSS Selectors (one per line):</label>
+          <textarea id="allowedSelectors" class="selector-textarea" placeholder=".price&#10;#price-input&#10;[data-price]&#10;.currency-field"></textarea>
+          <div class="selector-help">Examples: .price, #total, [data-currency], input.amount</div>
+        </div>
+        
+        <div class="selector-input-container" id="blockedSelectorsContainer" style="display: none;">
+          <label class="selector-input-label">Blocked CSS Selectors (one per line):</label>
+          <textarea id="blockedSelectors" class="selector-textarea" placeholder=".advertisement&#10;.ad&#10;#popup&#10;.modal"></textarea>
+          <div class="selector-help">Examples: .ad, #popup, [data-ads], .hidden-field</div>
+        </div>
       </div>
     </div>
 
