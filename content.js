@@ -157,7 +157,12 @@ class CurrencyConverter {
     // Poll for active input elements every 500ms
     setInterval(() => {
       const activeElement = document.activeElement;
-      if (activeElement && this.isInputElement(activeElement)) {
+      // Only check elements that are actually text-input related, not checkboxes/buttons
+      if (
+        activeElement &&
+        this.isTextInputElement(activeElement) &&
+        this.isInputElement(activeElement)
+      ) {
         this.handleTextChange(activeElement);
       }
 
@@ -230,7 +235,11 @@ class CurrencyConverter {
       return;
     }
 
-    if (this.isInputElement(event.target)) {
+    // Only process if it's a text input element first (avoid unnecessary logging on checkboxes, etc.)
+    if (
+      this.isTextInputElement(event.target) &&
+      this.isInputElement(event.target)
+    ) {
       this.handleTextChange(event.target);
     }
   }
@@ -244,13 +253,21 @@ class CurrencyConverter {
       return;
     }
 
-    if (this.isInputElement(event.target)) {
+    // Only process if it's a text input element first (avoid unnecessary logging on checkboxes, etc.)
+    if (
+      this.isTextInputElement(event.target) &&
+      this.isInputElement(event.target)
+    ) {
       this.handleTextChange(event.target);
     }
   }
 
   handlePaste(event) {
-    if (this.isInputElement(event.target)) {
+    // Only process if it's a text input element first (avoid unnecessary logging on checkboxes, etc.)
+    if (
+      this.isTextInputElement(event.target) &&
+      this.isInputElement(event.target)
+    ) {
       // Wait for paste to complete, then process
       setTimeout(() => {
         this.handleTextChange(event.target);
@@ -259,7 +276,11 @@ class CurrencyConverter {
   }
 
   handleClick(event) {
-    if (this.isInputElement(event.target)) {
+    // Only process if it's a text input element first (avoid unnecessary logging on checkboxes, etc.)
+    if (
+      this.isTextInputElement(event.target) &&
+      this.isInputElement(event.target)
+    ) {
       // Check if there's already text in the field
       setTimeout(() => {
         this.handleTextChange(event.target);
@@ -301,7 +322,7 @@ class CurrencyConverter {
         this.elementMatchesSelector(element, selector)
       );
 
-      // Debug: Log when element is being checked
+      // Debug: Only log for actual input-like elements to reduce noise
       if (result) {
         console.log("✅ Element ALLOWED:", {
           tagName: element.tagName,
@@ -311,8 +332,9 @@ class CurrencyConverter {
             this.elementMatchesSelector(element, selector)
           ),
         });
-      } else {
-        console.log("❌ Element REJECTED:", {
+      } else if (this.isBasicInputElement(element)) {
+        // Only log rejections for actual input elements to reduce console spam
+        console.log("❌ Input Element REJECTED by selector filters:", {
           tagName: element.tagName,
           className: element.className,
           id: element.id,
@@ -378,6 +400,47 @@ class CurrencyConverter {
         element.classList.contains("form-control") ||
         element.classList.contains("x-textbox"))
     ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if element is specifically a text input element (excludes checkboxes, radio buttons, etc.)
+   * @param {Element} element - Element to check
+   * @returns {boolean} Whether element is a text input
+   */
+  isTextInputElement(element) {
+    if (!element || !element.tagName) return false;
+
+    // Text-based input elements only
+    if (element.tagName === "INPUT") {
+      const type = element.type?.toLowerCase() || "text";
+      // Only allow text-based input types, exclude checkboxes, radio buttons, etc.
+      return [
+        "text",
+        "search",
+        "url",
+        "tel",
+        "email",
+        "password",
+        "number",
+      ].includes(type);
+    }
+
+    // Textarea is always text-based
+    if (element.tagName === "TEXTAREA") {
+      return true;
+    }
+
+    // Contenteditable elements
+    if (element.contentEditable === "true" || element.contentEditable === "") {
+      return true;
+    }
+
+    // Elements with text-based roles
+    if (element.getAttribute && element.getAttribute("role") === "textbox") {
       return true;
     }
 
