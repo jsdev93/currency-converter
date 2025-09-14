@@ -1,54 +1,186 @@
-// Popup script for the currency converter extension
+/**
+ * Popup Controller for the Live Currency Converter Extension
+ * Handles UI interactions, settings management, and content script injection
+ */
+
+// Configuration constants
+const CONFIG = {
+  DEFAULTS: {
+    enabled: true,
+    processingFee: false,
+    tariff: false,
+    tariffPercentage: 16.5,
+    fromCurrency: "JPY",
+    toCurrency: "USD",
+  },
+  STORAGE_KEYS: [
+    "enabled",
+    "processingFee",
+    "tariff",
+    "tariffPercentage",
+    "fromCurrency",
+    "toCurrency",
+  ],
+  MESSAGES: {
+    PING: "ping",
+    TOGGLE_ENABLED: "toggleEnabled",
+    CURRENCY_CHANGED: "currencyChanged",
+    PROCESSING_FEE_CHANGED: "processingFeeChanged",
+    TARIFF_CHANGED: "tariffChanged",
+    TARIFF_PERCENTAGE_CHANGED: "tariffPercentageChanged",
+  },
+};
+
+/**
+ * Utility class for common operations
+ */
+class PopupUtils {
+  /**
+   * Send message to content script in active tab
+   * @param {Object} message - Message to send
+   * @returns {Promise<any>} Response from content script
+   */
+  static async sendMessageToActiveTab(message) {
+    try {
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tabs[0]) {
+        return await chrome.tabs.sendMessage(tabs[0].id, message);
+      }
+    } catch (error) {
+      console.log("Could not notify content script:", error.message);
+    }
+    return null;
+  }
+
+  /**
+   * Update toggle UI state
+   * @param {Element} toggle - Toggle element
+   * @param {boolean} enabled - Whether toggle should be active
+   */
+  static updateToggleState(toggle, enabled) {
+    if (!toggle) return;
+
+    if (enabled) {
+      toggle.classList.add("active");
+    } else {
+      toggle.classList.remove("active");
+    }
+  }
+
+  /**
+   * Get toggle state from element
+   * @param {Element} toggle - Toggle element
+   * @returns {boolean} Current toggle state
+   */
+  static getToggleState(toggle) {
+    return toggle?.classList.contains("active") || false;
+  }
+
+  /**
+   * Validate percentage input
+   * @param {string|number} value - Percentage value to validate
+   * @returns {boolean} Whether value is valid
+   */
+  static validatePercentage(value) {
+    const num = parseFloat(value);
+    return !isNaN(num) && num >= 0 && num <= 100;
+  }
+}
 
 class PopupController {
   constructor() {
-    this.enableToggle = document.getElementById("enableToggle");
-    this.processingFeeToggle = document.getElementById("processingFeeToggle");
-    this.tariffToggle = document.getElementById("tariffToggle");
-    this.tariffPercentage = document.getElementById("tariffPercentage");
-    this.rateValue = document.getElementById("rateValue");
-    this.rateDescription = document.getElementById("rateDescription");
-    this.lastUpdated = document.getElementById("lastUpdated");
-    this.fromCurrency = document.getElementById("fromCurrency");
-    this.toCurrency = document.getElementById("toCurrency");
-    this.swapButton = document.getElementById("swapCurrencies");
-
+    this.elements = this.initializeElements();
     this.init();
   }
 
-  async init() {
-    await this.loadSettings();
-    await this.loadExchangeRate();
-    this.setupEventListeners();
+  /**
+   * Initialize DOM elements
+   * @returns {Object} Object containing all DOM element references
+   */
+  initializeElements() {
+    const elementIds = [
+      "enableToggle",
+      "processingFeeToggle",
+      "tariffToggle",
+      "tariffPercentage",
+      "rateValue",
+      "rateDescription",
+      "lastUpdated",
+      "fromCurrency",
+      "toCurrency",
+      "swapCurrencies",
+    ];
+
+    const elements = {};
+    elementIds.forEach((id) => {
+      elements[id] = document.getElementById(id);
+      if (!elements[id]) {
+        console.warn(`Element with id '${id}' not found`);
+      }
+    });
+
+    return elements;
   }
 
+  /**
+   * Initialize the popup controller
+   */
+  async init() {
+    try {
+      await this.loadSettings();
+      await this.loadExchangeRate();
+      this.setupEventListeners();
+    } catch (error) {
+      console.error("Failed to initialize popup:", error);
+      this.displayError("Failed to initialize extension");
+    }
+  }
+
+  /**
+   * Load settings from storage and update UI
+   */
   async loadSettings() {
     try {
-      const {
-        enabled = true,
-        processingFee = false,
-        tariff = false,
-        tariffPercentage = 16.5,
-        fromCurrency = "JPY",
-        toCurrency = "USD",
-      } = await chrome.storage.local.get([
-        "enabled",
-        "processingFee",
-        "tariff",
-        "tariffPercentage",
-        "fromCurrency",
-        "toCurrency",
-      ]);
+      const settings = await chrome.storage.local.get(CONFIG.STORAGE_KEYS);
+      const settingsWithDefaults = { ...CONFIG.DEFAULTS, ...settings };
 
-      this.updateToggle(enabled);
-      this.updateProcessingFeeToggle(processingFee);
-      this.updateTariffToggle(tariff);
-      this.tariffPercentage.value = tariffPercentage;
-      this.fromCurrency.value = fromCurrency;
-      this.toCurrency.value = toCurrency;
+      this.applySettingsToUI(settingsWithDefaults);
       this.updateRateDescription();
     } catch (error) {
       console.error("Failed to load settings:", error);
+      this.displayError("Failed to load settings");
+    }
+  }
+
+  /**
+   * Apply loaded settings to UI elements
+   * @param {Object} settings - Settings object
+   */
+  applySettingsToUI(settings) {
+    const {
+      enabled,
+      processingFee,
+      tariff,
+      tariffPercentage,
+      fromCurrency,
+      toCurrency,
+    } = settings;
+
+    this.updateToggle(enabled);
+    this.updateProcessingFeeToggle(processingFee);
+    this.updateTariffToggle(tariff);
+
+    if (this.elements.tariffPercentage) {
+      this.elements.tariffPercentage.value = tariffPercentage;
+    }
+    if (this.elements.fromCurrency) {
+      this.elements.fromCurrency.value = fromCurrency;
+    }
+    if (this.elements.toCurrency) {
+      this.elements.toCurrency.value = toCurrency;
     }
   }
 
@@ -57,8 +189,10 @@ class PopupController {
       // Get rate from background script
       const response = await chrome.runtime.sendMessage({
         action: "getExchangeRate",
-        fromCurrency: this.fromCurrency.value,
-        toCurrency: this.toCurrency.value,
+        fromCurrency:
+          this.elements.fromCurrency?.value || CONFIG.DEFAULTS.fromCurrency,
+        toCurrency:
+          this.elements.toCurrency?.value || CONFIG.DEFAULTS.toCurrency,
       });
 
       if (response.error) {
@@ -82,31 +216,51 @@ class PopupController {
     }
   }
 
+  /**
+   * Setup event listeners for UI interactions
+   */
   setupEventListeners() {
-    this.enableToggle.addEventListener("click", this.handleToggle.bind(this));
-    this.processingFeeToggle.addEventListener(
-      "click",
-      this.handleProcessingFeeToggle.bind(this)
-    );
-    this.tariffToggle.addEventListener(
-      "click",
-      this.handleTariffToggle.bind(this)
-    );
-    this.tariffPercentage.addEventListener(
-      "input",
-      this.handleTariffPercentageChange.bind(this)
-    );
-    this.fromCurrency.addEventListener(
-      "change",
-      this.handleCurrencyChange.bind(this)
-    );
-    this.toCurrency.addEventListener(
-      "change",
-      this.handleCurrencyChange.bind(this)
-    );
-    this.swapButton.addEventListener("click", this.handleSwap.bind(this));
+    const eventMap = [
+      { element: "enableToggle", event: "click", handler: "handleToggle" },
+      {
+        element: "processingFeeToggle",
+        event: "click",
+        handler: "handleProcessingFeeToggle",
+      },
+      {
+        element: "tariffToggle",
+        event: "click",
+        handler: "handleTariffToggle",
+      },
+      {
+        element: "tariffPercentage",
+        event: "input",
+        handler: "handleTariffPercentageChange",
+      },
+      {
+        element: "fromCurrency",
+        event: "change",
+        handler: "handleCurrencyChange",
+      },
+      {
+        element: "toCurrency",
+        event: "change",
+        handler: "handleCurrencyChange",
+      },
+      { element: "swapCurrencies", event: "click", handler: "handleSwap" },
+    ];
 
-    // Refresh rate when popup opens
+    // Bind all event listeners
+    eventMap.forEach(({ element, event, handler }) => {
+      if (this.elements[element] && this[handler]) {
+        this.elements[element].addEventListener(
+          event,
+          this[handler].bind(this)
+        );
+      }
+    });
+
+    // Refresh rate when popup becomes visible
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) {
         this.loadExchangeRate();
@@ -114,130 +268,105 @@ class PopupController {
     });
   }
 
+  /**
+   * Handle main extension toggle
+   */
   async handleToggle() {
-    const isCurrentlyEnabled = this.enableToggle.classList.contains("active");
-    const newState = !isCurrentlyEnabled;
+    await this.handleToggleAction(
+      "enabled",
+      this.elements.enableToggle,
+      CONFIG.MESSAGES.TOGGLE_ENABLED
+    );
+  }
+
+  /**
+   * Generic toggle handler
+   * @param {string} storageKey - Storage key to update
+   * @param {Element} toggleElement - Toggle UI element
+   * @param {string} messageAction - Message action to send
+   * @param {Object} additionalData - Additional data to include in message
+   */
+  async handleToggleAction(
+    storageKey,
+    toggleElement,
+    messageAction,
+    additionalData = {}
+  ) {
+    const currentState = PopupUtils.getToggleState(toggleElement);
+    const newState = !currentState;
 
     try {
       // Save to storage
-      await chrome.storage.local.set({ enabled: newState });
+      await chrome.storage.local.set({ [storageKey]: newState });
 
       // Update UI
-      this.updateToggle(newState);
+      PopupUtils.updateToggleState(toggleElement, newState);
 
       // Notify content scripts
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
+      await PopupUtils.sendMessageToActiveTab({
+        action: messageAction,
+        [storageKey]: newState,
+        ...additionalData,
       });
-      if (tabs[0]) {
-        chrome.tabs
-          .sendMessage(tabs[0].id, {
-            action: "toggleEnabled",
-            enabled: newState,
-          })
-          .catch((error) => {
-            // Content script might not be loaded yet, that's okay
-            console.log("Could not notify content script:", error.message);
-          });
-      }
     } catch (error) {
-      console.error("Failed to toggle setting:", error);
+      console.error(`Failed to toggle ${storageKey}:`, error);
     }
   }
 
+  /**
+   * Update main toggle UI state
+   * @param {boolean} enabled - Whether toggle should be active
+   */
   updateToggle(enabled) {
-    if (enabled) {
-      this.enableToggle.classList.add("active");
-    } else {
-      this.enableToggle.classList.remove("active");
-    }
+    PopupUtils.updateToggleState(this.elements.enableToggle, enabled);
   }
 
+  /**
+   * Handle processing fee toggle
+   */
   async handleProcessingFeeToggle() {
-    const isCurrentlyEnabled =
-      this.processingFeeToggle.classList.contains("active");
-    const newState = !isCurrentlyEnabled;
-
-    try {
-      // Save to storage
-      await chrome.storage.local.set({ processingFee: newState });
-
-      // Update UI
-      this.updateProcessingFeeToggle(newState);
-
-      // Notify content scripts
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (tabs[0]) {
-        chrome.tabs
-          .sendMessage(tabs[0].id, {
-            action: "processingFeeChanged",
-            processingFee: newState,
-          })
-          .catch((error) => {
-            console.log("Could not notify content script:", error.message);
-          });
-      }
-    } catch (error) {
-      console.error("Failed to toggle processing fee:", error);
-    }
+    await this.handleToggleAction(
+      "processingFee",
+      this.elements.processingFeeToggle,
+      CONFIG.MESSAGES.PROCESSING_FEE_CHANGED
+    );
   }
 
+  /**
+   * Update processing fee toggle UI state
+   * @param {boolean} enabled - Whether toggle should be active
+   */
   updateProcessingFeeToggle(enabled) {
-    if (enabled) {
-      this.processingFeeToggle.classList.add("active");
-    } else {
-      this.processingFeeToggle.classList.remove("active");
-    }
+    PopupUtils.updateToggleState(this.elements.processingFeeToggle, enabled);
   }
 
+  /**
+   * Handle tariff toggle
+   */
   async handleTariffToggle() {
-    const isCurrentlyEnabled = this.tariffToggle.classList.contains("active");
-    const newState = !isCurrentlyEnabled;
-
-    try {
-      // Save to storage
-      await chrome.storage.local.set({ tariff: newState });
-
-      // Update UI
-      this.updateTariffToggle(newState);
-
-      // Notify content scripts
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (tabs[0]) {
-        chrome.tabs
-          .sendMessage(tabs[0].id, {
-            action: "tariffChanged",
-            tariff: newState,
-          })
-          .catch((error) => {
-            console.log("Could not notify content script:", error.message);
-          });
-      }
-    } catch (error) {
-      console.error("Failed to toggle tariff:", error);
-    }
+    await this.handleToggleAction(
+      "tariff",
+      this.elements.tariffToggle,
+      CONFIG.MESSAGES.TARIFF_CHANGED
+    );
   }
 
+  /**
+   * Update tariff toggle UI state
+   * @param {boolean} enabled - Whether toggle should be active
+   */
   updateTariffToggle(enabled) {
-    if (enabled) {
-      this.tariffToggle.classList.add("active");
-    } else {
-      this.tariffToggle.classList.remove("active");
-    }
+    PopupUtils.updateToggleState(this.elements.tariffToggle, enabled);
   }
 
+  /**
+   * Handle tariff percentage input change
+   */
   async handleTariffPercentageChange() {
-    const percentage = parseFloat(this.tariffPercentage.value);
+    const percentage = parseFloat(this.elements.tariffPercentage.value);
 
-    // Validate percentage (0-100)
-    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+    // Validate percentage input
+    if (!PopupUtils.validatePercentage(percentage)) {
       return; // Don't save invalid values
     }
 
@@ -246,84 +375,106 @@ class PopupController {
       await chrome.storage.local.set({ tariffPercentage: percentage });
 
       // Notify content scripts
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
+      await PopupUtils.sendMessageToActiveTab({
+        action: CONFIG.MESSAGES.TARIFF_PERCENTAGE_CHANGED,
+        tariffPercentage: percentage,
       });
-      if (tabs[0]) {
-        chrome.tabs
-          .sendMessage(tabs[0].id, {
-            action: "tariffPercentageChanged",
-            tariffPercentage: percentage,
-          })
-          .catch((error) => {
-            console.log("Could not notify content script:", error.message);
-          });
-      }
     } catch (error) {
       console.error("Failed to update tariff percentage:", error);
     }
   }
 
+  /**
+   * Display exchange rate in UI
+   * @param {number} rate - Exchange rate to display
+   */
   displayExchangeRate(rate) {
-    if (typeof rate === "number" && rate > 0) {
-      this.rateValue.textContent = `$${rate.toFixed(6)}`;
+    if (!this.elements.rateValue) return;
 
-      // Also show a practical example
+    if (typeof rate === "number" && rate > 0) {
+      this.elements.rateValue.textContent = `$${rate.toFixed(6)}`;
+
+      // Show practical example in tooltip
       const exampleJPY = 10000;
       const exampleUSD = exampleJPY * rate;
-      this.rateValue.title = `Example: ¥${exampleJPY.toLocaleString()} = $${exampleUSD.toFixed(
+      this.elements.rateValue.title = `Example: ¥${exampleJPY.toLocaleString()} = $${exampleUSD.toFixed(
         2
       )}`;
     } else {
-      this.rateValue.textContent = "Invalid rate";
+      this.elements.rateValue.textContent = "Invalid rate";
     }
   }
 
+  /**
+   * Display last updated time in UI
+   * @param {Date} date - Last update date
+   */
   displayLastUpdated(date) {
+    if (!this.elements.lastUpdated) return;
+
+    const updateText = this.formatTimeDifference(date);
+    this.elements.lastUpdated.textContent = updateText;
+    this.elements.lastUpdated.title = `Last updated: ${date.toLocaleString()}`;
+  }
+
+  /**
+   * Format time difference for display
+   * @param {Date} date - Date to compare against now
+   * @returns {string} Formatted time difference
+   */
+  formatTimeDifference(date) {
     const now = new Date();
     const diffMs = now - date;
     const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-    let updateText;
     if (diffMinutes < 1) {
-      updateText = "Updated just now";
+      return "Updated just now";
     } else if (diffMinutes < 60) {
-      updateText = `Updated ${diffMinutes} min${
-        diffMinutes === 1 ? "" : "s"
-      } ago`;
+      return `Updated ${diffMinutes} min${diffMinutes === 1 ? "" : "s"} ago`;
     } else {
       const diffHours = Math.floor(diffMinutes / 60);
-      updateText = `Updated ${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+      return `Updated ${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+    }
+  }
+
+  /**
+   * Display error message in UI
+   * @param {string} message - Error message to display
+   */
+  displayError(message) {
+    if (this.elements.rateValue) {
+      this.elements.rateValue.textContent = "Error";
+      this.elements.rateValue.className = "rate-value error";
+    }
+    if (this.elements.lastUpdated) {
+      this.elements.lastUpdated.textContent = message;
+    }
+  }
+
+  /**
+   * Handle currency selection change
+   */
+  async handleCurrencyChange() {
+    if (!this.elements.fromCurrency || !this.elements.toCurrency) {
+      return;
     }
 
-    this.lastUpdated.textContent = updateText;
-    this.lastUpdated.title = `Last updated: ${date.toLocaleString()}`;
-  }
-
-  displayError(message) {
-    this.rateValue.textContent = "Error";
-    this.rateValue.className = "rate-value error";
-    this.lastUpdated.textContent = message;
-  }
-
-  async handleCurrencyChange() {
-    const fromCurrency = this.fromCurrency.value;
-    const toCurrency = this.toCurrency.value;
+    const fromCurrency = this.elements.fromCurrency.value;
+    const toCurrency = this.elements.toCurrency.value;
 
     // Prevent same currency selection
     if (fromCurrency === toCurrency) {
       // Auto-swap to prevent same currency
-      if (this.fromCurrency === document.activeElement) {
+      if (this.elements.fromCurrency === document.activeElement) {
         // User changed "from", so change "to" to something different
         const alternatives = ["USD", "EUR", "GBP", "JPY"];
-        this.toCurrency.value = alternatives.find(
+        this.elements.toCurrency.value = alternatives.find(
           (curr) => curr !== fromCurrency
         );
       } else {
         // User changed "to", so change "from" to something different
         const alternatives = ["JPY", "USD", "EUR", "GBP"];
-        this.fromCurrency.value = alternatives.find(
+        this.elements.fromCurrency.value = alternatives.find(
           (curr) => curr !== toCurrency
         );
       }
@@ -331,8 +482,8 @@ class PopupController {
 
     // Save settings
     await chrome.storage.local.set({
-      fromCurrency: this.fromCurrency.value,
-      toCurrency: this.toCurrency.value,
+      fromCurrency: this.elements.fromCurrency.value,
+      toCurrency: this.elements.toCurrency.value,
     });
 
     this.updateRateDescription();
@@ -342,42 +493,53 @@ class PopupController {
     this.notifyContentScript();
   }
 
+  /**
+   * Handle currency swap button click
+   */
   async handleSwap() {
-    const fromValue = this.fromCurrency.value;
-    const toValue = this.toCurrency.value;
+    if (!this.elements.fromCurrency || !this.elements.toCurrency) {
+      return;
+    }
 
-    this.fromCurrency.value = toValue;
-    this.toCurrency.value = fromValue;
+    const fromValue = this.elements.fromCurrency.value;
+    const toValue = this.elements.toCurrency.value;
+
+    this.elements.fromCurrency.value = toValue;
+    this.elements.toCurrency.value = fromValue;
 
     await this.handleCurrencyChange();
   }
 
+  /**
+   * Update rate description text
+   */
   updateRateDescription() {
-    const from = this.fromCurrency.value;
-    const to = this.toCurrency.value;
-    this.rateDescription.textContent = `1 ${from} = ${to}`;
+    if (
+      !this.elements.fromCurrency ||
+      !this.elements.toCurrency ||
+      !this.elements.rateDescription
+    ) {
+      return;
+    }
+
+    const from = this.elements.fromCurrency.value;
+    const to = this.elements.toCurrency.value;
+    this.elements.rateDescription.textContent = `1 ${from} = ${to}`;
   }
 
+  /**
+   * Notify content script of currency changes
+   */
   async notifyContentScript() {
-    try {
-      const tabs = await chrome.tabs.query({
-        active: true,
-        currentWindow: true,
-      });
-      if (tabs[0]) {
-        chrome.tabs
-          .sendMessage(tabs[0].id, {
-            action: "currencyChanged",
-            fromCurrency: this.fromCurrency.value,
-            toCurrency: this.toCurrency.value,
-          })
-          .catch(() => {
-            // Content script might not be loaded, that's okay
-          });
-      }
-    } catch (error) {
-      console.log("Could not notify content script:", error.message);
+    if (!this.elements.fromCurrency || !this.elements.toCurrency) {
+      return;
     }
+
+    await PopupUtils.sendMessageToActiveTab({
+      action: CONFIG.MESSAGES.CURRENCY_CHANGED,
+      fromCurrency: this.elements.fromCurrency.value,
+      toCurrency: this.elements.toCurrency.value,
+    });
   }
 }
 

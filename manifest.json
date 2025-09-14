@@ -5,9 +5,7 @@
   "description": "Real-time currency conversion from Japanese Yen to US Dollar as you type",
   
   "permissions": [
-    "activeTab",
-    "storage",
-    "background"
+    "storage"
   ],
   
   "host_permissions": [

@@ -26,12 +26,15 @@ A Chrome extension that shows real-time currency conversion between multiple cur
 
 ### Usage
 
-1. **Click the extension icon** to open the popup
-2. **Select your currencies**: Choose "From" and "To" currencies
-3. **Enable conversion** using the toggle switch
-4. **Optional**: Enable 5% processing fee simulation
-5. **Type any number** in text fields on websites
-6. **See conversion** appear in a tooltip automatically
+1. **Navigate to any website** where you want currency conversion
+2. **Click the extension icon** to open the popup (this activates the extension on that tab)
+3. **Select your currencies**: Choose "From" and "To" currencies
+4. **Enable conversion** using the toggle switch
+5. **Optional**: Enable processing fee and/or custom tariff percentage
+6. **Type any number** in text fields on that website
+7. **See conversion** appear in a tooltip automatically
+
+**Note**: You need to click the extension icon on each new website where you want to use currency conversion. This ensures the extension only runs where you explicitly want it.
 
 ### Supported Features
 
@@ -70,10 +73,12 @@ live-currency-extension/
 
 ### Permissions
 
-- `activeTab`: To inject content scripts
-- `storage`: To cache exchange rates and settings
-- `background`: For the service worker
-- `https://api.exchangerate-api.com/*`: To fetch exchange rates
+- `storage`: To cache exchange rates and user settings (currencies, fees, toggles)
+- `activeTab`: To inject content scripts only on tabs where you open the extension popup
+- `scripting`: To programmatically inject the content script and CSS when needed
+- `https://api.exchangerate-api.com/*`: To fetch live exchange rates from the API
+
+**Security Note**: The extension only activates on websites where you explicitly open the popup, not on all websites automatically. This follows the principle of least privilege and provides better security and privacy.
 
 ## Development
 

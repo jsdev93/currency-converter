@@ -545,6 +545,11 @@ document.addEventListener("visibilitychange", () => {
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   try {
+    if (request.action === "ping") {
+      sendResponse({ success: true, active: !!currencyConverter });
+      return true;
+    }
+
     if (request.action === "toggleEnabled") {
       if (currencyConverter) {
         currencyConverter.isEnabled = request.enabled;
