@@ -138,6 +138,8 @@ class PopupController {
       "blocklistUrls",
       "allowlistContainer",
       "blocklistContainer",
+      "urlToggle",
+      "urlContent",
       "advancedToggle",
       "advancedContent",
       "selectorModeDisabled",
@@ -321,6 +323,11 @@ class PopupController {
         element: "blocklistUrls",
         event: "input",
         handler: "handleBlocklistChange",
+      },
+      {
+        element: "urlToggle",
+        event: "click",
+        handler: "handleUrlToggle",
       },
       {
         element: "advancedToggle",
@@ -769,6 +776,23 @@ class PopupController {
       allowlistUrls: settings.allowlistUrls,
       blocklistUrls: settings.blocklistUrls,
     });
+  }
+
+  /**
+   * Handle URL settings toggle
+   */
+  handleUrlToggle() {
+    if (!this.elements.urlToggle || !this.elements.urlContent) return;
+
+    const isExpanded = this.elements.urlContent.style.display !== "none";
+
+    if (isExpanded) {
+      this.elements.urlContent.style.display = "none";
+      this.elements.urlToggle.classList.remove("expanded");
+    } else {
+      this.elements.urlContent.style.display = "block";
+      this.elements.urlToggle.classList.add("expanded");
+    }
   }
 
   /**

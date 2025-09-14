@@ -4,407 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Live Currency Converter</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      width: 300px;
-      min-height: 200px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-    }
-
-    .container {
-      padding: 20px;
-    }
-
-    .header {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-
-    .header h1 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 5px;
-    }
-
-    .header p {
-      font-size: 12px;
-      opacity: 0.8;
-    }
-
-    .toggle-section {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
-      backdrop-filter: blur(10px);
-    }
-
-    .url-management-section {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
-      backdrop-filter: blur(10px);
-    }
-
-    .section-title {
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: white;
-    }
-
-    .url-mode-container {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .radio-container {
-      display: flex;
-      align-items: center;
-      cursor: pointer;
-      padding: 6px;
-      border-radius: 4px;
-      transition: background 0.2s;
-    }
-
-    .radio-container:hover {
-      background: rgba(255, 255, 255, 0.1);
-    }
-
-    .radio-container input[type="radio"] {
-      margin-right: 8px;
-      width: 16px;
-      height: 16px;
-      cursor: pointer;
-    }
-
-    .radio-label {
-      font-size: 13px;
-      color: white;
-      cursor: pointer;
-    }
-
-    .url-input-container {
-      margin-top: 10px;
-    }
-
-    .url-input-label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 6px;
-      opacity: 0.8;
-      font-weight: 500;
-    }
-
-    .url-textarea {
-      width: 100%;
-      min-height: 80px;
-      padding: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      font-size: 12px;
-      font-family: monospace;
-      resize: vertical;
-      line-height: 1.4;
-    }
-
-    .url-textarea::placeholder {
-      color: rgba(255, 255, 255, 0.5);
-      font-style: italic;
-    }
-
-    .url-textarea:focus {
-      outline: none;
-      border-color: #4299e1;
-      box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
-    }
-
-    .advanced-settings-section {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      margin-bottom: 15px;
-      backdrop-filter: blur(10px);
-      overflow: hidden;
-    }
-
-    .section-header {
-      padding: 15px;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: background 0.2s;
-      user-select: none;
-    }
-
-    .section-header:hover {
-      background: rgba(255, 255, 255, 0.05);
-    }
-
-    .collapse-icon {
-      font-size: 12px;
-      transition: transform 0.3s ease;
-      color: rgba(255, 255, 255, 0.7);
-    }
-
-    .section-header.expanded .collapse-icon {
-      transform: rotate(180deg);
-    }
-
-    .advanced-content {
-      padding: 0 15px 15px 15px;
-      transition: max-height 0.3s ease, opacity 0.3s ease;
-      overflow: hidden;
-    }
-
-    .selector-mode-container {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    .selector-input-container {
-      margin-top: 10px;
-    }
-
-    .selector-input-label {
-      display: block;
-      font-size: 12px;
-      margin-bottom: 6px;
-      opacity: 0.8;
-      font-weight: 500;
-    }
-
-    .selector-textarea {
-      width: 100%;
-      min-height: 70px;
-      padding: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-      font-size: 11px;
-      font-family: 'Courier New', monospace;
-      resize: vertical;
-      line-height: 1.4;
-    }
-
-    .selector-textarea::placeholder {
-      color: rgba(255, 255, 255, 0.5);
-      font-style: italic;
-    }
-
-    .selector-textarea:focus {
-      outline: none;
-      border-color: #4299e1;
-      box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
-    }
-
-    .selector-help {
-      font-size: 10px;
-      opacity: 0.6;
-      margin-top: 4px;
-      font-style: italic;
-    }
-
-    .toggle-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .toggle-label {
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .toggle-switch {
-      position: relative;
-      width: 50px;
-      height: 24px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 12px;
-      cursor: pointer;
-      transition: background 0.3s ease;
-    }
-
-    .toggle-switch.active {
-      background: #48bb78;
-    }
-
-    .toggle-slider {
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 20px;
-      height: 20px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.3s ease;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-
-    .toggle-switch.active .toggle-slider {
-      transform: translateX(26px);
-    }
-
-    .rate-section {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
-      backdrop-filter: blur(10px);
-    }
-
-    .rate-info {
-      text-align: center;
-    }
-
-    .rate-value {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 5px;
-      color: #ffd700;
-    }
-
-    .rate-description {
-      font-size: 12px;
-      opacity: 0.8;
-    }
-
-    .last-updated {
-      font-size: 10px;
-      opacity: 0.6;
-      margin-top: 5px;
-    }
-
-    .example-section {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      backdrop-filter: blur(10px);
-    }
-
-    .example-title {
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      opacity: 0.9;
-    }
-
-    .example-item {
-      font-size: 11px;
-      margin-bottom: 3px;
-      opacity: 0.8;
-    }
-
-    .loading {
-      text-align: center;
-      opacity: 0.7;
-      font-size: 12px;
-    }
-
-    .error {
-      color: #fed7d7;
-      background: rgba(254, 178, 178, 0.2);
-      padding: 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      text-align: center;
-    }
-
-    .tariff-input-container input:focus {
-      outline: none;
-      border-color: #4299e1;
-      box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
-    }
-
-    .tariff-input-container input::-webkit-outer-spin-button,
-    .tariff-input-container input::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-
-    .tariff-input-container input[type=number] {
-      -moz-appearance: textfield;
-    }
-
-    .currency-selection {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 15px;
-      backdrop-filter: blur(10px);
-    }
-
-    .currency-row {
-      display: flex;
-      align-items: flex-end;
-      gap: 10px;
-    }
-
-    .currency-input {
-      flex: 1;
-    }
-
-    .currency-input label {
-      display: block;
-      font-size: 11px;
-      margin-bottom: 5px;
-      opacity: 0.8;
-      font-weight: 500;
-    }
-
-    .currency-select {
-      width: 100%;
-      padding: 6px 8px;
-      border: none;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.9);
-      color: #2d3748;
-      font-size: 11px;
-      cursor: pointer;
-      outline: none;
-    }
-
-    .currency-select:focus {
-      background: white;
-      box-shadow: 0 0 0 2px rgba(103, 126, 234, 0.5);
-    }
-
-    .swap-button {
-      width: 30px;
-      height: 30px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 16px;
-      margin-bottom: 2px;
-    }
-
-    .swap-button:hover {
-      background: rgba(255, 255, 255, 0.3);
-      transform: rotate(180deg);
-    }
-  </style>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
@@ -459,40 +59,45 @@
       </div>
     </div>
 
-    <div class="url-management-section">
-      <div class="section-title">URL Access Control</div>
-      
-      <div class="url-mode-container">
-        <label class="radio-container">
-          <input type="radio" name="urlFilterMode" value="disabled" id="urlModeDisabled" checked>
-          <span class="radio-label">Allow All URLs</span>
-        </label>
-        
-        <label class="radio-container">
-          <input type="radio" name="urlFilterMode" value="allowlist" id="urlModeAllowlist">
-          <span class="radio-label">Allowlist Only</span>
-        </label>
-        
-        <label class="radio-container">
-          <input type="radio" name="urlFilterMode" value="blocklist" id="urlModeBlocklist">
-          <span class="radio-label">Block Specific</span>
-        </label>
+    <div class="advanced-settings-section">
+      <div class="section-header" id="urlToggle">
+        <span class="section-title">URL Access Control</span>
+        <span class="collapse-icon">▼</span>
       </div>
       
-      <div class="url-input-container" id="allowlistContainer" style="display: none;">
-        <label class="url-input-label">Allowed URLs (one per line):</label>
-        <textarea id="allowlistUrls" class="url-textarea" placeholder="ebay.com&#10;amazon.com&#10;*.example.com"></textarea>
-      </div>
-      
-      <div class="url-input-container" id="blocklistContainer" style="display: none;">
-        <label class="url-input-label">Blocked URLs (one per line):</label>
-        <textarea id="blocklistUrls" class="url-textarea" placeholder="chrome://&#10;chrome-extension://&#10;*.ads.com"></textarea>
+      <div class="advanced-content" id="urlContent" style="display: none;">
+        <div class="url-mode-container">
+          <label class="radio-container">
+            <input type="radio" name="urlFilterMode" value="disabled" id="urlModeDisabled" checked>
+            <span class="radio-label">Allow All URLs</span>
+          </label>
+          
+          <label class="radio-container">
+            <input type="radio" name="urlFilterMode" value="allowlist" id="urlModeAllowlist">
+            <span class="radio-label">Allowlist Only</span>
+          </label>
+          
+          <label class="radio-container">
+            <input type="radio" name="urlFilterMode" value="blocklist" id="urlModeBlocklist">
+            <span class="radio-label">Block Specific</span>
+          </label>
+        </div>
+        
+        <div class="url-input-container" id="allowlistContainer" style="display: none;">
+          <label class="url-input-label">Allowed URLs (one per line):</label>
+          <textarea id="allowlistUrls" class="url-textarea" placeholder="ebay.com&#10;amazon.com&#10;*.example.com"></textarea>
+        </div>
+        
+        <div class="url-input-container" id="blocklistContainer" style="display: none;">
+          <label class="url-input-label">Blocked URLs (one per line):</label>
+          <textarea id="blocklistUrls" class="url-textarea" placeholder="chrome://&#10;chrome-extension://&#10;*.ads.com"></textarea>
+        </div>
       </div>
     </div>
 
     <div class="advanced-settings-section">
       <div class="section-header" id="advancedToggle">
-        <span class="section-title">Advanced Element Filtering</span>
+        <span class="section-title">Advanced Filters</span>
         <span class="collapse-icon">▼</span>
       </div>
       
@@ -578,9 +183,9 @@
 
     <div class="example-section">
       <div class="example-title">How it works:</div>
-      <div class="example-item">Type ANY number → see USD conversion</div>
-      <div class="example-item">All numbers treated as JPY by default</div>
+      <div class="example-item">Type ANY number in an input field → see From to conversion</div>
       <div class="example-item">Real-time conversion as you type</div>
+      <div class="example-item">Advanced Filters overrides all fields</div>
     </div>
   </div>
 
