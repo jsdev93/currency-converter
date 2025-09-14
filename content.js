@@ -12,6 +12,10 @@ class CurrencyConverter {
     this.toCurrency = "USD";
     this.lastProcessedText = "";
     this.lastProcessedElement = null;
+    this.urlFilterMode = "disabled";
+    this.allowlistUrls = [];
+    this.blocklistUrls = [];
+    this.isUrlAllowed = true; // Default to allowed
     this.init();
   }
 
@@ -26,6 +30,9 @@ class CurrencyConverter {
       tariffPercentage = 16.5,
       fromCurrency = "JPY",
       toCurrency = "USD",
+      urlFilterMode = "disabled",
+      allowlistUrls = [],
+      blocklistUrls = [],
     } = await chrome.storage.local.get([
       "enabled",
       "processingFee",
@@ -33,6 +40,9 @@ class CurrencyConverter {
       "tariffPercentage",
       "fromCurrency",
       "toCurrency",
+      "urlFilterMode",
+      "allowlistUrls",
+      "blocklistUrls",
     ]);
 
     this.isEnabled = enabled;
@@ -41,6 +51,12 @@ class CurrencyConverter {
     this.tariffPercentage = tariffPercentage;
     this.fromCurrency = fromCurrency;
     this.toCurrency = toCurrency;
+    this.urlFilterMode = urlFilterMode;
+    this.allowlistUrls = allowlistUrls;
+    this.blocklistUrls = blocklistUrls;
+
+    // Check if current URL is allowed
+    this.isUrlAllowed = this.checkUrlAllowed(window.location.href);
 
     console.log("💱 Currency Converter Settings:", {
       enabled: this.isEnabled,
@@ -50,6 +66,8 @@ class CurrencyConverter {
       from: this.fromCurrency,
       to: this.toCurrency,
       site: window.location.hostname,
+      urlFilterMode: this.urlFilterMode,
+      urlAllowed: this.isUrlAllowed,
     });
 
     if (this.isEnabled) {
@@ -169,14 +187,23 @@ class CurrencyConverter {
   }
 
   handleInput(event) {
+    // Check if extension is enabled and URL is allowed
+    if (!this.isEnabled || !this.isUrlAllowed) {
+      return;
+    }
+
     // Only log if we're actually processing a valid input element
-    if (this.isInputElement(event.target) && this.isEnabled) {
+    if (this.isInputElement(event.target)) {
       console.log("🔍 Processing input on", window.location.hostname);
     }
     this.handleTextChange(event.target);
   }
 
   handleFocus(event) {
+    if (!this.isEnabled || !this.isUrlAllowed) {
+      return;
+    }
+
     if (this.isInputElement(event.target)) {
       this.handleTextChange(event.target);
     }
@@ -187,6 +214,10 @@ class CurrencyConverter {
   }
 
   handleKeyUp(event) {
+    if (!this.isEnabled || !this.isUrlAllowed) {
+      return;
+    }
+
     if (this.isInputElement(event.target)) {
       this.handleTextChange(event.target);
     }
@@ -211,6 +242,11 @@ class CurrencyConverter {
   }
 
   handleTextChange(element) {
+    // Check if extension is enabled and URL is allowed
+    if (!this.isEnabled || !this.isUrlAllowed) {
+      return;
+    }
+
     clearTimeout(this.debounceTimer);
     this.debounceTimer = setTimeout(() => {
       this.processText(element);
@@ -507,6 +543,107 @@ class CurrencyConverter {
       maximumFractionDigits: currency === "JPY" ? 0 : 2,
     }).format(amount);
   }
+
+  /**
+   * Check if the current URL is allowed based on filter settings
+   * @param {string} url - URL to check
+   * @returns {boolean} Whether URL is allowed
+   */
+  checkUrlAllowed(url) {
+    if (this.urlFilterMode === "disabled") {
+      return true;
+    }
+
+    const domain = this.extractDomain(url);
+
+    if (this.urlFilterMode === "allowlist") {
+      // If allowlist is empty, allow all
+      if (!this.allowlistUrls.length) {
+        return true;
+      }
+      // Check if domain matches any allowlist pattern
+      return this.allowlistUrls.some((pattern) =>
+        this.matchesPattern(domain, pattern)
+      );
+    }
+
+    if (this.urlFilterMode === "blocklist") {
+      // Check if domain matches any blocklist pattern
+      return !this.blocklistUrls.some((pattern) =>
+        this.matchesPattern(domain, pattern)
+      );
+    }
+
+    return true;
+  }
+
+  /**
+   * Extract domain from URL
+   * @param {string} url - Full URL
+   * @returns {string} Domain portion
+   */
+  extractDomain(url) {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.toLowerCase();
+    } catch (error) {
+      console.log("Failed to parse URL:", url);
+      return url.toLowerCase();
+    }
+  }
+
+  /**
+   * Check if domain matches URL pattern (supports wildcards)
+   * @param {string} domain - Domain to check
+   * @param {string} pattern - Pattern to match against
+   * @returns {boolean} Whether domain matches pattern
+   */
+  matchesPattern(domain, pattern) {
+    // Handle direct protocol matches (like chrome://)
+    if (pattern.includes("://")) {
+      return window.location.href
+        .toLowerCase()
+        .startsWith(pattern.toLowerCase());
+    }
+
+    // Convert wildcard pattern to regex
+    const regexPattern = pattern
+      .toLowerCase()
+      .replace(/\./g, "\\.") // Escape dots
+      .replace(/\*/g, ".*"); // Convert * to .*
+
+    const regex = new RegExp(`^${regexPattern}$`);
+
+    // Check if domain matches pattern or is a subdomain of pattern
+    return (
+      regex.test(domain) || domain.endsWith("." + pattern.replace(/^\*\./, ""))
+    );
+  }
+
+  /**
+   * Update URL filter settings
+   * @param {Object} settings - New URL filter settings
+   */
+  updateUrlFilter(settings) {
+    this.urlFilterMode = settings.urlFilterMode || "disabled";
+    this.allowlistUrls = settings.allowlistUrls || [];
+    this.blocklistUrls = settings.blocklistUrls || [];
+
+    // Re-check current URL
+    this.isUrlAllowed = this.checkUrlAllowed(window.location.href);
+
+    console.log("URL filter updated:", {
+      mode: this.urlFilterMode,
+      allowed: this.isUrlAllowed,
+      allowlist: this.allowlistUrls,
+      blocklist: this.blocklistUrls,
+    });
+
+    // Hide tooltip if URL is no longer allowed
+    if (!this.isUrlAllowed) {
+      this.hideTooltip();
+    }
+  }
 }
 
 // Initialize the converter
@@ -603,6 +740,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       sendResponse({ success: true });
     }
+
+    if (request.action === "urlFilterChanged") {
+      if (currencyConverter) {
+        currencyConverter.updateUrlFilter({
+          urlFilterMode: request.urlFilterMode,
+          allowlistUrls: request.allowlistUrls,
+          blocklistUrls: request.blocklistUrls,
+        });
+      }
+      sendResponse({ success: true });
+    }
   } catch (error) {
     console.log("Error handling message:", error.message);
     sendResponse({ success: false, error: error.message });
@@ -650,6 +798,30 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
       );
       // Refresh tooltip to show updated percentage
       currencyConverter.hideTooltip();
+    }
+
+    // Handle URL filter changes
+    if (
+      changes.urlFilterMode ||
+      changes.allowlistUrls ||
+      changes.blocklistUrls
+    ) {
+      const newSettings = {};
+      if (changes.urlFilterMode)
+        newSettings.urlFilterMode = changes.urlFilterMode.newValue;
+      if (changes.allowlistUrls)
+        newSettings.allowlistUrls = changes.allowlistUrls.newValue;
+      if (changes.blocklistUrls)
+        newSettings.blocklistUrls = changes.blocklistUrls.newValue;
+
+      currencyConverter.updateUrlFilter({
+        urlFilterMode:
+          newSettings.urlFilterMode || currencyConverter.urlFilterMode,
+        allowlistUrls:
+          newSettings.allowlistUrls || currencyConverter.allowlistUrls,
+        blocklistUrls:
+          newSettings.blocklistUrls || currencyConverter.blocklistUrls,
+      });
     }
   }
 });

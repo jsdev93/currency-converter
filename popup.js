@@ -12,6 +12,9 @@ const CONFIG = {
     tariffPercentage: 16.5,
     fromCurrency: "JPY",
     toCurrency: "USD",
+    urlFilterMode: "disabled", // "disabled", "allowlist", "blocklist"
+    allowlistUrls: ["ebay.com", "amazon.com", "aliexpress.com"],
+    blocklistUrls: ["chrome://", "chrome-extension://"],
   },
   STORAGE_KEYS: [
     "enabled",
@@ -20,6 +23,9 @@ const CONFIG = {
     "tariffPercentage",
     "fromCurrency",
     "toCurrency",
+    "urlFilterMode",
+    "allowlistUrls",
+    "blocklistUrls",
   ],
   MESSAGES: {
     PING: "ping",
@@ -28,6 +34,7 @@ const CONFIG = {
     PROCESSING_FEE_CHANGED: "processingFeeChanged",
     TARIFF_CHANGED: "tariffChanged",
     TARIFF_PERCENTAGE_CHANGED: "tariffPercentageChanged",
+    URL_FILTER_CHANGED: "urlFilterChanged",
   },
 };
 
@@ -112,6 +119,13 @@ class PopupController {
       "fromCurrency",
       "toCurrency",
       "swapCurrencies",
+      "urlModeDisabled",
+      "urlModeAllowlist",
+      "urlModeBlocklist",
+      "allowlistUrls",
+      "blocklistUrls",
+      "allowlistContainer",
+      "blocklistContainer",
     ];
 
     const elements = {};
@@ -167,6 +181,9 @@ class PopupController {
       tariffPercentage,
       fromCurrency,
       toCurrency,
+      urlFilterMode,
+      allowlistUrls,
+      blocklistUrls,
     } = settings;
 
     this.updateToggle(enabled);
@@ -182,6 +199,10 @@ class PopupController {
     if (this.elements.toCurrency) {
       this.elements.toCurrency.value = toCurrency;
     }
+
+    // Apply URL management settings
+    this.updateUrlFilterMode(urlFilterMode);
+    this.updateUrlLists(allowlistUrls, blocklistUrls);
   }
 
   async loadExchangeRate() {
@@ -248,6 +269,31 @@ class PopupController {
         handler: "handleCurrencyChange",
       },
       { element: "swapCurrencies", event: "click", handler: "handleSwap" },
+      {
+        element: "urlModeDisabled",
+        event: "change",
+        handler: "handleUrlModeChange",
+      },
+      {
+        element: "urlModeAllowlist",
+        event: "change",
+        handler: "handleUrlModeChange",
+      },
+      {
+        element: "urlModeBlocklist",
+        event: "change",
+        handler: "handleUrlModeChange",
+      },
+      {
+        element: "allowlistUrls",
+        event: "input",
+        handler: "handleAllowlistChange",
+      },
+      {
+        element: "blocklistUrls",
+        event: "input",
+        handler: "handleBlocklistChange",
+      },
     ];
 
     // Bind all event listeners
@@ -539,6 +585,131 @@ class PopupController {
       action: CONFIG.MESSAGES.CURRENCY_CHANGED,
       fromCurrency: this.elements.fromCurrency.value,
       toCurrency: this.elements.toCurrency.value,
+    });
+  }
+
+  /**
+   * Update URL filter mode UI and visibility
+   * @param {string} mode - Filter mode: 'disabled', 'allowlist', 'blocklist'
+   */
+  updateUrlFilterMode(mode) {
+    // Update radio buttons
+    if (this.elements.urlModeDisabled) {
+      this.elements.urlModeDisabled.checked = mode === "disabled";
+    }
+    if (this.elements.urlModeAllowlist) {
+      this.elements.urlModeAllowlist.checked = mode === "allowlist";
+    }
+    if (this.elements.urlModeBlocklist) {
+      this.elements.urlModeBlocklist.checked = mode === "blocklist";
+    }
+
+    // Show/hide appropriate containers
+    if (this.elements.allowlistContainer) {
+      this.elements.allowlistContainer.style.display =
+        mode === "allowlist" ? "block" : "none";
+    }
+    if (this.elements.blocklistContainer) {
+      this.elements.blocklistContainer.style.display =
+        mode === "blocklist" ? "block" : "none";
+    }
+  }
+
+  /**
+   * Update URL lists in textareas
+   * @param {Array} allowlistUrls - Array of allowed URLs
+   * @param {Array} blocklistUrls - Array of blocked URLs
+   */
+  updateUrlLists(allowlistUrls, blocklistUrls) {
+    if (this.elements.allowlistUrls && Array.isArray(allowlistUrls)) {
+      this.elements.allowlistUrls.value = allowlistUrls.join("\n");
+    }
+    if (this.elements.blocklistUrls && Array.isArray(blocklistUrls)) {
+      this.elements.blocklistUrls.value = blocklistUrls.join("\n");
+    }
+  }
+
+  /**
+   * Handle URL filter mode change
+   */
+  async handleUrlModeChange(event) {
+    const mode = event.target.value;
+
+    try {
+      // Save to storage
+      await chrome.storage.local.set({ urlFilterMode: mode });
+
+      // Update UI
+      this.updateUrlFilterMode(mode);
+
+      // Notify content scripts
+      await this.notifyUrlFilterChange();
+    } catch (error) {
+      console.error("Failed to update URL filter mode:", error);
+    }
+  }
+
+  /**
+   * Handle allowlist URL changes
+   */
+  async handleAllowlistChange() {
+    if (!this.elements.allowlistUrls) return;
+
+    const urlText = this.elements.allowlistUrls.value;
+    const urls = this.parseUrlList(urlText);
+
+    try {
+      await chrome.storage.local.set({ allowlistUrls: urls });
+      await this.notifyUrlFilterChange();
+    } catch (error) {
+      console.error("Failed to update allowlist:", error);
+    }
+  }
+
+  /**
+   * Handle blocklist URL changes
+   */
+  async handleBlocklistChange() {
+    if (!this.elements.blocklistUrls) return;
+
+    const urlText = this.elements.blocklistUrls.value;
+    const urls = this.parseUrlList(urlText);
+
+    try {
+      await chrome.storage.local.set({ blocklistUrls: urls });
+      await this.notifyUrlFilterChange();
+    } catch (error) {
+      console.error("Failed to update blocklist:", error);
+    }
+  }
+
+  /**
+   * Parse URL list from textarea input
+   * @param {string} urlText - Raw text input from textarea
+   * @returns {Array} Cleaned array of URL patterns
+   */
+  parseUrlList(urlText) {
+    return urlText
+      .split("\n")
+      .map((url) => url.trim())
+      .filter((url) => url.length > 0);
+  }
+
+  /**
+   * Notify content script of URL filter changes
+   */
+  async notifyUrlFilterChange() {
+    const settings = await chrome.storage.local.get([
+      "urlFilterMode",
+      "allowlistUrls",
+      "blocklistUrls",
+    ]);
+
+    await PopupUtils.sendMessageToActiveTab({
+      action: "urlFilterChanged",
+      urlFilterMode: settings.urlFilterMode,
+      allowlistUrls: settings.allowlistUrls,
+      blocklistUrls: settings.blocklistUrls,
     });
   }
 }
