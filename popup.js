@@ -4,6 +4,8 @@ class PopupController {
   constructor() {
     this.enableToggle = document.getElementById("enableToggle");
     this.processingFeeToggle = document.getElementById("processingFeeToggle");
+    this.tariffToggle = document.getElementById("tariffToggle");
+    this.tariffPercentage = document.getElementById("tariffPercentage");
     this.rateValue = document.getElementById("rateValue");
     this.rateDescription = document.getElementById("rateDescription");
     this.lastUpdated = document.getElementById("lastUpdated");
@@ -25,17 +27,23 @@ class PopupController {
       const {
         enabled = true,
         processingFee = false,
+        tariff = false,
+        tariffPercentage = 16.5,
         fromCurrency = "JPY",
         toCurrency = "USD",
       } = await chrome.storage.local.get([
         "enabled",
         "processingFee",
+        "tariff",
+        "tariffPercentage",
         "fromCurrency",
         "toCurrency",
       ]);
 
       this.updateToggle(enabled);
       this.updateProcessingFeeToggle(processingFee);
+      this.updateTariffToggle(tariff);
+      this.tariffPercentage.value = tariffPercentage;
       this.fromCurrency.value = fromCurrency;
       this.toCurrency.value = toCurrency;
       this.updateRateDescription();
@@ -79,6 +87,14 @@ class PopupController {
     this.processingFeeToggle.addEventListener(
       "click",
       this.handleProcessingFeeToggle.bind(this)
+    );
+    this.tariffToggle.addEventListener(
+      "click",
+      this.handleTariffToggle.bind(this)
+    );
+    this.tariffPercentage.addEventListener(
+      "input",
+      this.handleTariffPercentageChange.bind(this)
     );
     this.fromCurrency.addEventListener(
       "change",
@@ -175,6 +191,77 @@ class PopupController {
       this.processingFeeToggle.classList.add("active");
     } else {
       this.processingFeeToggle.classList.remove("active");
+    }
+  }
+
+  async handleTariffToggle() {
+    const isCurrentlyEnabled = this.tariffToggle.classList.contains("active");
+    const newState = !isCurrentlyEnabled;
+
+    try {
+      // Save to storage
+      await chrome.storage.local.set({ tariff: newState });
+
+      // Update UI
+      this.updateTariffToggle(newState);
+
+      // Notify content scripts
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tabs[0]) {
+        chrome.tabs
+          .sendMessage(tabs[0].id, {
+            action: "tariffChanged",
+            tariff: newState,
+          })
+          .catch((error) => {
+            console.log("Could not notify content script:", error.message);
+          });
+      }
+    } catch (error) {
+      console.error("Failed to toggle tariff:", error);
+    }
+  }
+
+  updateTariffToggle(enabled) {
+    if (enabled) {
+      this.tariffToggle.classList.add("active");
+    } else {
+      this.tariffToggle.classList.remove("active");
+    }
+  }
+
+  async handleTariffPercentageChange() {
+    const percentage = parseFloat(this.tariffPercentage.value);
+
+    // Validate percentage (0-100)
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+      return; // Don't save invalid values
+    }
+
+    try {
+      // Save to storage
+      await chrome.storage.local.set({ tariffPercentage: percentage });
+
+      // Notify content scripts
+      const tabs = await chrome.tabs.query({
+        active: true,
+        currentWindow: true,
+      });
+      if (tabs[0]) {
+        chrome.tabs
+          .sendMessage(tabs[0].id, {
+            action: "tariffPercentageChanged",
+            tariffPercentage: percentage,
+          })
+          .catch((error) => {
+            console.log("Could not notify content script:", error.message);
+          });
+      }
+    } catch (error) {
+      console.error("Failed to update tariff percentage:", error);
     }
   }
 

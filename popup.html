@@ -153,6 +153,22 @@
       text-align: center;
     }
 
+    .tariff-input-container input:focus {
+      outline: none;
+      border-color: #4299e1;
+      box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.3);
+    }
+
+    .tariff-input-container input::-webkit-outer-spin-button,
+    .tariff-input-container input::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .tariff-input-container input[type=number] {
+      -moz-appearance: textfield;
+    }
+
     .currency-selection {
       background: rgba(255, 255, 255, 0.1);
       border-radius: 8px;
@@ -236,6 +252,36 @@
         <div class="toggle-switch" id="processingFeeToggle">
           <div class="toggle-slider"></div>
         </div>
+      </div>
+      
+      <div class="toggle-container" style="margin-top: 12px;">
+        <span class="toggle-label">Add Tariff</span>
+        <div class="toggle-switch" id="tariffToggle">
+          <div class="toggle-slider"></div>
+        </div>
+      </div>
+      
+      <div class="tariff-input-container" style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+        <label for="tariffPercentage" style="font-size: 12px; opacity: 0.8;">Tariff %:</label>
+        <input 
+          type="number" 
+          id="tariffPercentage" 
+          min="0" 
+          max="100" 
+          step="0.1" 
+          value="16.5" 
+          style="
+            width: 60px; 
+            padding: 4px 6px; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            border-radius: 4px; 
+            background: rgba(255,255,255,0.1); 
+            color: white; 
+            font-size: 12px;
+            text-align: center;
+          "
+        />
+        <span style="font-size: 12px; opacity: 0.6;">%</span>
       </div>
     </div>
 

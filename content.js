@@ -4,6 +4,8 @@ class CurrencyConverter {
     this.tooltip = null;
     this.isEnabled = true;
     this.processingFee = false;
+    this.tariff = false;
+    this.tariffPercentage = 16.5;
     this.currentRate = null;
     this.debounceTimer = null;
     this.fromCurrency = "JPY";
@@ -20,23 +22,31 @@ class CurrencyConverter {
     const {
       enabled = true,
       processingFee = false,
+      tariff = false,
+      tariffPercentage = 16.5,
       fromCurrency = "JPY",
       toCurrency = "USD",
     } = await chrome.storage.local.get([
       "enabled",
       "processingFee",
+      "tariff",
+      "tariffPercentage",
       "fromCurrency",
       "toCurrency",
     ]);
 
     this.isEnabled = enabled;
     this.processingFee = processingFee;
+    this.tariff = tariff;
+    this.tariffPercentage = tariffPercentage;
     this.fromCurrency = fromCurrency;
     this.toCurrency = toCurrency;
 
     console.log("💱 Currency Converter Settings:", {
       enabled: this.isEnabled,
       processingFee: this.processingFee,
+      tariff: this.tariff,
+      tariffPercentage: this.tariffPercentage + "%",
       from: this.fromCurrency,
       to: this.toCurrency,
       site: window.location.hostname,
@@ -45,7 +55,6 @@ class CurrencyConverter {
     if (this.isEnabled) {
       this.setupEventListeners();
       this.createTooltip();
-      this.createDebugIndicator();
     }
   }
 
@@ -66,115 +75,15 @@ class CurrencyConverter {
       pointer-events: none !important;
       opacity: 0 !important;
       transition: opacity 0.2s ease !important;
-      white-space: nowrap !important;
       border: 2px solid #4299e1 !important;
       backdrop-filter: blur(8px) !important;
-      max-width: 300px !important;
+      width: auto !important;
+      min-width: fit-content !important;
+      max-width: 400px !important;
+      word-wrap: break-word !important;
     `;
     document.body.appendChild(this.tooltip);
     console.log("✅ Currency Converter: Tooltip created and added to DOM");
-  }
-
-  createDebugIndicator() {
-    // Create a small debug indicator to show the extension is active
-    const indicator = document.createElement("div");
-    indicator.id = "currency-converter-debug";
-    indicator.textContent = "💱";
-    indicator.style.cssText = `
-      position: fixed !important;
-      top: 10px !important;
-      right: 10px !important;
-      background: #4CAF50 !important;
-      color: white !important;
-      padding: 5px 8px !important;
-      border-radius: 12px !important;
-      font-size: 12px !important;
-      z-index: 2147483647 !important;
-      font-family: Arial, sans-serif !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-      cursor: pointer !important;
-    `;
-    indicator.title = `Currency Converter Active\nFrom: ${
-      this.fromCurrency
-    }\nTo: ${this.toCurrency}\nFee: ${this.processingFee ? "5%" : "None"}`;
-
-    // Click to test conversion and show tooltip
-    indicator.addEventListener("click", () => {
-      const testAmount = 1000;
-      console.log(
-        `🧪 Testing conversion: ${testAmount} ${this.fromCurrency} → ${this.toCurrency}`
-      );
-      this.testConversion(testAmount);
-      this.showTestTooltip();
-    });
-
-    document.body.appendChild(indicator);
-
-    // Remove indicator after 5 seconds
-    setTimeout(() => {
-      if (indicator && indicator.parentNode) {
-        indicator.parentNode.removeChild(indicator);
-      }
-    }, 5000);
-  }
-
-  async testConversion(amount) {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        action: "convertCurrency",
-        amount: amount,
-        fromCurrency: this.fromCurrency,
-        toCurrency: this.toCurrency,
-      });
-
-      console.log("🧪 Test conversion result:", response);
-
-      if (response && !response.error) {
-        // Show test tooltip
-        const testDiv = document.createElement("div");
-        testDiv.style.cssText =
-          "position: fixed; top: 50px; right: 10px; background: orange; color: white; padding: 10px; border-radius: 4px; z-index: 2147483647;";
-        testDiv.innerHTML = `TEST: ${amount} ${
-          this.fromCurrency
-        } → ${response.toAmount.toFixed(2)} ${this.toCurrency}`;
-        document.body.appendChild(testDiv);
-        setTimeout(() => testDiv.remove(), 3000);
-      }
-    } catch (error) {
-      console.error("🧪 Test conversion failed:", error);
-    }
-  }
-
-  showTestTooltip() {
-    if (!this.tooltip) {
-      console.error("❌ Tooltip element not found!");
-      return;
-    }
-
-    console.log("🧪 Showing test tooltip");
-
-    this.tooltip.innerHTML = `
-      <div style="font-weight: 600; margin-bottom: 2px;">
-        TEST: ¥1,000 → $6.70
-      </div>
-      <div style="font-size: 12px; opacity: 0.8;">
-        Rate: 1 JPY = 0.006700 USD
-      </div>
-    `;
-
-    // Position tooltip in center of screen for testing
-    this.tooltip.style.left = "50%";
-    this.tooltip.style.top = "50%";
-    this.tooltip.style.transform = "translate(-50%, -50%)";
-    this.tooltip.style.position = "fixed";
-    this.tooltip.style.opacity = "1";
-
-    console.log("✅ Test tooltip should be visible now");
-
-    // Hide after 3 seconds
-    setTimeout(() => {
-      this.hideTooltip();
-    }, 3000);
   }
 
   setupEventListeners() {
@@ -409,10 +318,13 @@ class CurrencyConverter {
     }
 
     // Prevent duplicate processing of same text
-    if (textContent === this.lastProcessedText && element === this.lastProcessedElement) {
+    if (
+      textContent === this.lastProcessedText &&
+      element === this.lastProcessedElement
+    ) {
       return;
     }
-    
+
     this.lastProcessedText = textContent;
     this.lastProcessedElement = element;
 
@@ -493,10 +405,20 @@ class CurrencyConverter {
     console.log("📍 Element position:", rect);
     const formattedFrom = this.formatCurrency(fromAmount, this.fromCurrency);
 
-    // Apply 5% processing fee if enabled
+    // Apply processing fee and tariff if enabled
     let finalToAmount = toAmount;
+    let baseAmount = toAmount;
+    let processingFeeAmount = 0;
+    let tariffAmount = 0;
+
     if (this.processingFee) {
-      finalToAmount = toAmount * 1.05; // Add 5% fee
+      processingFeeAmount = toAmount * 0.05; // 5% processing fee
+      finalToAmount += processingFeeAmount;
+    }
+
+    if (this.tariff) {
+      tariffAmount = baseAmount * (this.tariffPercentage / 100); // Custom tariff percentage on base amount
+      finalToAmount += tariffAmount;
     }
 
     const formattedTo = this.formatCurrency(finalToAmount, this.toCurrency);
@@ -509,16 +431,30 @@ class CurrencyConverter {
         Rate: 1 ${this.fromCurrency} = ${rate.toFixed(6)} ${this.toCurrency}
       </div>`;
 
-    // Show fee breakdown if processing fee is enabled
-    if (this.processingFee) {
-      const formattedBase = this.formatCurrency(toAmount, this.toCurrency);
-      const formattedFee = this.formatCurrency(
-        toAmount * 0.05,
-        this.toCurrency
-      );
+    // Show fee and tariff breakdown if any are enabled
+    if (this.processingFee || this.tariff) {
+      const formattedBase = this.formatCurrency(baseAmount, this.toCurrency);
+      let breakdownText = `Base: ${formattedBase}`;
+
+      if (this.processingFee) {
+        const formattedFee = this.formatCurrency(
+          processingFeeAmount,
+          this.toCurrency
+        );
+        breakdownText += ` + Fee: ${formattedFee} (5%)`;
+      }
+
+      if (this.tariff) {
+        const formattedTariff = this.formatCurrency(
+          tariffAmount,
+          this.toCurrency
+        );
+        breakdownText += ` + Tariff: ${formattedTariff} (${this.tariffPercentage}%)`;
+      }
+
       tooltipContent += `
       <div style="font-size: 11px; opacity: 0.7; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 4px;">
-        Base: ${formattedBase} + Fee: ${formattedFee} (5%)
+        ${breakdownText}
       </div>`;
     }
 
@@ -639,6 +575,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       }
       sendResponse({ success: true });
     }
+
+    if (request.action === "tariffChanged") {
+      if (currencyConverter) {
+        currencyConverter.tariff = request.tariff;
+        console.log("Tariff changed to:", request.tariff);
+        // Hide current tooltip to refresh with new tariff calculation
+        currencyConverter.hideTooltip();
+      }
+      sendResponse({ success: true });
+    }
+
+    if (request.action === "tariffPercentageChanged") {
+      if (currencyConverter) {
+        currencyConverter.tariffPercentage = request.tariffPercentage;
+        console.log(
+          "Tariff percentage changed to:",
+          request.tariffPercentage + "%"
+        );
+        // Hide current tooltip to refresh with new percentage
+        currencyConverter.hideTooltip();
+      }
+      sendResponse({ success: true });
+    }
   } catch (error) {
     console.log("Error handling message:", error.message);
     sendResponse({ success: false, error: error.message });
@@ -668,6 +627,23 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
         changes.processingFee.newValue
       );
       // Refresh tooltip to show updated fee
+      currencyConverter.hideTooltip();
+    }
+
+    if (changes.tariff) {
+      currencyConverter.tariff = changes.tariff.newValue;
+      console.log("Storage change - Tariff:", changes.tariff.newValue);
+      // Refresh tooltip to show updated tariff
+      currencyConverter.hideTooltip();
+    }
+
+    if (changes.tariffPercentage) {
+      currencyConverter.tariffPercentage = changes.tariffPercentage.newValue;
+      console.log(
+        "Storage change - Tariff percentage:",
+        changes.tariffPercentage.newValue + "%"
+      );
+      // Refresh tooltip to show updated percentage
       currencyConverter.hideTooltip();
     }
   }
