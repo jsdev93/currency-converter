@@ -199,6 +199,31 @@ class CurrencyConverter {
 
         this.showTooltip(element, amount, response.toAmount, response.rate);
       } catch (error) {
+        // Handle extension context invalidation gracefully
+        if (
+          error.message &&
+          error.message.includes("Extension context invalidated")
+        ) {
+          console.log(
+            "Extension was reloaded - currency conversion temporarily unavailable"
+          );
+          this.hideTooltip();
+          return;
+        }
+
+        // Handle other connection errors
+        if (
+          error.message &&
+          (error.message.includes("Could not establish connection") ||
+            error.message.includes("Receiving end does not exist"))
+        ) {
+          console.log(
+            "Background script not available - extension may need reload"
+          );
+          this.hideTooltip();
+          return;
+        }
+
         console.warn("Failed to convert currency:", error);
       }
     } else {
@@ -280,47 +305,75 @@ class CurrencyConverter {
 // Initialize the converter
 let currencyConverter;
 
+// Function to safely initialize the converter
+function initializeCurrencyConverter() {
+  try {
+    if (!currencyConverter) {
+      currencyConverter = new CurrencyConverter();
+    }
+  } catch (error) {
+    console.log("Failed to initialize currency converter:", error.message);
+    // Retry after a short delay
+    setTimeout(initializeCurrencyConverter, 1000);
+  }
+}
+
 // Wait for DOM to be ready
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    currencyConverter = new CurrencyConverter();
-  });
+  document.addEventListener("DOMContentLoaded", initializeCurrencyConverter);
 } else {
-  currencyConverter = new CurrencyConverter();
+  initializeCurrencyConverter();
 }
+
+// Listen for extension reload and reinitialize
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !currencyConverter) {
+    console.log(
+      "Page became visible - checking if extension needs reinitialization"
+    );
+    initializeCurrencyConverter();
+  }
+});
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "toggleEnabled") {
-    if (currencyConverter) {
-      currencyConverter.isEnabled = request.enabled;
-      console.log("Extension toggle changed to:", request.enabled);
-      if (!request.enabled) {
+  try {
+    if (request.action === "toggleEnabled") {
+      if (currencyConverter) {
+        currencyConverter.isEnabled = request.enabled;
+        console.log("Extension toggle changed to:", request.enabled);
+        if (!request.enabled) {
+          currencyConverter.hideTooltip();
+        }
+      }
+      sendResponse({ success: true });
+    }
+
+    if (request.action === "currencyChanged") {
+      if (currencyConverter) {
+        currencyConverter.fromCurrency = request.fromCurrency;
+        currencyConverter.toCurrency = request.toCurrency;
+        // Hide current tooltip since currency changed
         currencyConverter.hideTooltip();
       }
+      sendResponse({ success: true });
     }
-    sendResponse({ success: true });
+
+    if (request.action === "processingFeeChanged") {
+      if (currencyConverter) {
+        currencyConverter.processingFee = request.processingFee;
+        console.log("Processing fee changed to:", request.processingFee);
+        // Hide current tooltip to refresh with new fee calculation
+        currencyConverter.hideTooltip();
+      }
+      sendResponse({ success: true });
+    }
+  } catch (error) {
+    console.log("Error handling message:", error.message);
+    sendResponse({ success: false, error: error.message });
   }
 
-  if (request.action === "currencyChanged") {
-    if (currencyConverter) {
-      currencyConverter.fromCurrency = request.fromCurrency;
-      currencyConverter.toCurrency = request.toCurrency;
-      // Hide current tooltip since currency changed
-      currencyConverter.hideTooltip();
-    }
-    sendResponse({ success: true });
-  }
-
-  if (request.action === "processingFeeChanged") {
-    if (currencyConverter) {
-      currencyConverter.processingFee = request.processingFee;
-      console.log("Processing fee changed to:", request.processingFee);
-      // Hide current tooltip to refresh with new fee calculation
-      currencyConverter.hideTooltip();
-    }
-    sendResponse({ success: true });
-  }
+  return true; // Keep message channel open for async response
 });
 
 // Listen for storage changes as backup

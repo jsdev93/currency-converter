@@ -1,15 +1,18 @@
 # Live Currency Converter Chrome Extension
 
-A Chrome extension that shows real-time USD conversion when you type Japanese Yen amounts in any text field.
+A Chrome extension that shows real-time currency conversion between multiple currencies as you type numbers in any text field.
 
 ## Features
 
-- 🔄 **Real-time conversion**: Automatically detects JPY amounts and shows USD equivalent
-- 💱 **Multiple formats supported**: ¥1,000, 1000 円, 1000 JPY, etc.
+- 🔄 **Real-time conversion**: Automatically detects numbers and shows currency conversion
+- 💱 **Multiple currencies**: Support for JPY, USD, EUR, GBP, CNY, KRW, CAD, AUD, CHF, SGD
+- 🔧 **Currency selection**: Choose any "from" and "to" currency pair
+- 💰 **Processing fee**: Optional 5% processing fee simulation
 - ⚡ **Live updates**: Exchange rates refresh every 5 minutes
 - 🎯 **Smart detection**: Works in any text input field across all websites
 - 🎨 **Clean UI**: Non-intrusive tooltip display with smooth animations
 - 💾 **Offline support**: Cached rates work even when offline
+- ⚙️ **Easy controls**: Toggle on/off and settings via popup interface
 
 ## Installation
 
@@ -23,19 +26,20 @@ A Chrome extension that shows real-time USD conversion when you type Japanese Ye
 
 ### Usage
 
-1. **Enable the extension** using the popup (click the extension icon)
-2. **Type JPY amounts** in any text field on any website
-3. **See USD conversion** appear in a tooltip automatically
+1. **Click the extension icon** to open the popup
+2. **Select your currencies**: Choose "From" and "To" currencies
+3. **Enable conversion** using the toggle switch
+4. **Optional**: Enable 5% processing fee simulation
+5. **Type any number** in text fields on websites
+6. **See conversion** appear in a tooltip automatically
 
-### Supported Formats
+### Supported Features
 
-The extension recognizes these yen amount formats:
-
-- `¥1,000` or `¥1000.50`
-- `1000円` or `1,000円`
-- `1000 yen` or `1000 YEN`
-- `JPY 1000` or `1000 JPY`
-- Pure numbers ≥ 100 (assumed to be yen)
+- **Currency Selection**: Choose from 10+ major currencies
+- **Any Number Detection**: Converts any number you type (treats as "from" currency)
+- **Processing Fee**: Optional 5% fee calculation for real-world scenarios
+- **Currency Formats**: Recognizes ¥, $, €, £ symbols and currency codes
+- **Smart Positioning**: Tooltip appears near your cursor without blocking content
 
 ### Screenshots
 
